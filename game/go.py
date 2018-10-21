@@ -5,6 +5,7 @@ from gym.utils import seeding
 from six import StringIO
 import sys
 import six
+import pachi_py
 
 # TODO: change for a variable using parser for HISTORY
 # TODO: define komi variable: either 6.5 or 7.5
@@ -73,31 +74,31 @@ class GoGame():
 
     # https://stackoverflow.com/questions/1500718/what-is-the-right-way-to-override-the-copy-deepcopy-operations-on-an-object-in-p
     def __deepcopy__(self):
-    	cls = self.__class__
+        cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-        	if k =="board":
-        		setattr(result, k, self.board.clone())
-        	else:
-            	setattr(result, k, deepcopy(v, memo))
+            if k =="board":
+                setattr(result, k, self.board.clone())
+            else:
+                setattr(result, k, deepcopy(v, memo))
         return result
 
 
     def play_action(self, action):
-	    """ If 2 player passes the game end (rule of Go),
-	        `play_action` performs an action and report a winner if
-	        both players passe """
+        """ If 2 player passes the game end (rule of Go),
+            `play_action` performs an action and report a winner if
+            both players passe """
 
-	    # if not terminal
-	    if not self.done:
-	        try:
-	            self._act(action, self.history)
-	        except pachi_py.IllegalMove:
-	            six.reraise(*sys.exc_info())
+        # if not terminal
+        if not self.done:
+            try:
+                self._act(action)
+            except pachi_py.IllegalMove:
+                six.reraise(*sys.exc_info())
 
-	    self.done = self.board.is_terminal
-	    self.state = _format_state(self.history, self.player_color, self.board_size)
+        self.done = self.board.is_terminal
+        self.state = _format_state(self.history, self.player_color, self.board_size)
 
     # def _komi(self):
     #     return 5.5 if board_size == 9 else
@@ -105,11 +106,10 @@ class GoGame():
     #            0
 
     def reset(self):
-		self.done = self.state.board.is_terminal
-
         # self.komi = self._komi(self.board_size)
         self.board = pachi_py.CreateBoard(self.board_size) # object with method
-        self.state = np.zeros((HISTORY + 1) * 2 + 1, BOARD_SIZE, BOARD_SIZE)
+        self.done = self.board.is_terminal
+        self.state = np.zeros(((HISTORY + 1) * 2 + 1, BOARD_SIZE, BOARD_SIZE))
 
         return self.state
 
@@ -125,14 +125,14 @@ class GoGame():
     def _act(self, action):
         """ Executes an action for the current player """
         self.board = self.board.play(_action_to_coord(self.board, action), self.player_color)
-        board = self.board_encode()
+        board = self.board.encode()
         # BLACK = 1 in pachi_py -> 0 in our env
         # WHITE = 2 in pachi_py -> 1 in our env
         color = self.player_color - 1
 
         # discard last history of current player and add current move to history of current player
-        history[color] = np.roll(history[color], 1, axis=0)
-        history[color][0] = np.array(board[color])
+        self.history[color] = np.roll(self.history[color], 1, axis=0)
+        self.history[color][0] = np.array(board[color])
 
         # switch player
         self.player_color = pachi_py.stone_other(self.player_color)
@@ -149,7 +149,7 @@ class GoGame():
         black_wins = self.board.official_score < 0
 
         player_wins = (white_wins and self.player_color == pachi_py.WHITE) \
-        			  or (black_wins and self.player_color == pachi_py.BLACK)
+                      or (black_wins and self.player_color == pachi_py.BLACK)
 
         reward = 1 if player_wins else -1 if (white_wins or black_wins) else 0
 
@@ -158,7 +158,7 @@ class GoGame():
     def render(self):
         """ Print the board for human """
         outfile = sys.stdout
-        outfile.stdout('To play: {}\n{}\n'.format(six.u(
-                        pachi_py.color_to_str(self.color)),
+        outfile.write('To play: {}\n{}\n'.format(six.u(
+                        pachi_py.color_to_str(self.player_color)),
                         self.board.__repr__().decode()))
         return outfile
