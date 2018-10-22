@@ -100,13 +100,15 @@ class GoGame():
         self.done = self.board.is_terminal
         self.state = _format_state(self.history, self.player_color, self.board_size)
 
-    # def _komi(self):
-    #     return 5.5 if board_size == 9 else
-    #            7.5 if board_size == 19 else
-    #            0
+    def _komi(self):
+        if 14 <= self.board_size <= 19:
+            return 7.5
+        elif 9 <= self.board_size <= 13:
+            return 5.5
+        return 0
 
     def reset(self):
-        # self.komi = self._komi(self.board_size)
+        self.komi = self._komi()
         self.board = pachi_py.CreateBoard(self.board_size) # object with method
         self.done = self.board.is_terminal
         self.state = np.zeros(((HISTORY + 1) * 2 + 1, BOARD_SIZE, BOARD_SIZE))
@@ -144,9 +146,10 @@ class GoGame():
         # is called by: https://github.com/openai/pachi-py/blob/master/pachi_py/goutil.cpp#L81
         # which is called by the python API: https://github.com/openai/pachi-py/blob/master/pachi_py/cypachi.pyx#L52
         
-        # TODO: komi is already used by official_score, but is board->komi populated in C++?
-        white_wins = self.board.official_score > 0
-        black_wins = self.board.official_score < 0
+        # TODO: komi is already used by official_score, but is board->komi populated in C++? No so put it here
+        score = self.komi + self.board.official_score
+        white_wins = score > 0
+        black_wins = score < 0
 
         player_wins = (white_wins and self.player_color == pachi_py.WHITE) \
                       or (black_wins and self.player_color == pachi_py.BLACK)
