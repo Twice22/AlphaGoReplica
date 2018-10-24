@@ -19,22 +19,32 @@ BOARD_SIZE = 9
 # use an action representation that does fall in this more natural range.
 
 def _pass_action(board_size):
+	""" Return the pass action """
     return board_size ** 2
 
 def _resign_action(board_size):
+	""" Return the resign action """
     return board_size ** 2 + 1
 
 def _coord_to_action(board, c):
-    """Converts Pachi coordinates to actions"""
-    if c == pachi_py.PASS_COORD: return _pass_action(board.size)
-    if c == pachi_py.RESIGN_COORD: return _resign_action(board.size)
+    """ Converts Pachi coordinates to actions """
+    if c == pachi_py.PASS_COORD:
+    	return _pass_action(board.size)
+
+    if c == pachi_py.RESIGN_COORD:
+    	return _resign_action(board.size)
+
     i, j = board.coord_to_ij(c)
     return i * board.size + j
 
 def _action_to_coord(board, a):
-    """Converts actions to Pachi coordinates"""
-    if a == _pass_action(board.size): return pachi_py.PASS_COORD
-    if a == _resign_action(board.size): return pachi_py.RESIGN_COORD
+    """ Converts actions to Pachi coordinates """
+    if a == _pass_action(board.size):
+    	return pachi_py.PASS_COORD
+
+    if a == _resign_action(board.size):
+    	return pachi_py.RESIGN_COORD
+
     return board.ij_to_coord(a // board.size, a % board.size)
 
 def _format_state(history, player_color, board_size):
@@ -50,11 +60,11 @@ class GoGame():
     Go environment. Play against a fixed opponent.
     '''
 
-    def __init__(self, player_color, board_size):
+    def __init__(self, player_color='black', board_size=9):
         """
         Args:
-            player_color: Stone color for the agent. Either 'black' or 'white'
-            board_size: size of the board
+            player_color (str): Stone color for the agent. Either 'black' or 'white'
+            board_size (int): board game side size
         """
         self.board_size = board_size
 
@@ -67,13 +77,11 @@ class GoGame():
         # history: [(8, 9, 9), (8, 9, 9)]
         self.history = [np.zeros((HISTORY + 1, board_size, board_size)),
                         np.zeros((HISTORY + 1, board_size, board_size))]
-
-        # create the board from pachi_py
-        # populate variable: self.board, self.done, self.komi, self.state
         self.reset()
 
     # https://stackoverflow.com/questions/1500718/what-is-the-right-way-to-override-the-copy-deepcopy-operations-on-an-object-in-p
     def __deepcopy__(self):
+    	""" Clone the current instance of the game """
         cls = self.__class__
         result = cls.__new__(cls)
         memo[id(self)] = result
@@ -87,10 +95,16 @@ class GoGame():
 
     def play_action(self, action):
         """ If 2 player passes the game end (rule of Go),
-            `play_action` performs an action and report a winner if
-            both players passe """
+            `play_action` performs an action and update
+            the state of the game
+		Args:
+			action (int): move to execute
+		Attributes:
+			done (bool): Whether the game ends or not
+			state (np.array): Tensor of size (17, board_size, board_size) as
+			described in the paper under `Neural network architecture` page 8
+        """
 
-        # if not terminal
         if not self.done:
             try:
                 self._act(action)
@@ -101,6 +115,10 @@ class GoGame():
         self.state = _format_state(self.history, self.player_color, self.board_size)
 
     def _komi(self):
+    	""" Add komi (bonus point) to the second player
+    		according to the size of the game in order to
+    		balance the game
+    	"""
         if 14 <= self.board_size <= 19:
             return 7.5
         elif 9 <= self.board_size <= 13:
@@ -108,6 +126,15 @@ class GoGame():
         return 0
 
     def reset(self):
+    	""" reset the Game
+    	Attributes:
+    		komi (int): komi value (bonus point) to balance the game
+    		board (PachiBoardPtr): board class with associate methods
+    		done (bool): Wether the game ends or not
+    		state (np.array): Tensor of size (17, board_size, board_size)
+    		formatted as described in the paper under `Neural network architecture` 
+    		page 8
+    	"""
         self.komi = self._komi()
         self.board = pachi_py.CreateBoard(self.board_size) # object with method
         self.done = self.board.is_terminal
@@ -115,21 +142,26 @@ class GoGame():
 
         return self.state
 
-    # see https://github.com/openai/pachi-py/blob/master/pachi_py/cypachi.pyx for the API
-    def get_legal_actions(self, action):
-        """ Get all the legal moves and transform their coords into 1D """
+    def get_legal_actions(self):
+        """ Get all the legal actions and transform their coords into integer values
+        Returns:
+       		np.array: array of integers that represents the legal actions.
+        """
 
-        # actually AlphaGoZero stipulates that 'No legal moves are excluded' p.7 so
-        # we can even avoid passing filter_suicides=True
         legal_moves = self.board.get_legal_coords(self.player_color, filter_suicides=True)
         return np.array([_coord_to_action(self.board, pachi_move) for pachi_move in legal_moves])
 
     def _act(self, action):
-        """ Executes an action for the current player """
+        """ Executes an action for the current player 
+		Args:
+			action (int): action to execute
+		Attributes:
+			board (PachiBoardPtr): update the board instance
+			player_color (int): Switch player
+        """
+
         self.board = self.board.play(_action_to_coord(self.board, action), self.player_color)
         board = self.board.encode()
-        # BLACK = 1 in pachi_py -> 0 in our env
-        # WHITE = 2 in pachi_py -> 1 in our env
         color = self.player_color - 1
 
         # discard last history of current player and add current move to history of current player
@@ -140,13 +172,12 @@ class GoGame():
         self.player_color = pachi_py.stone_other(self.player_color)
 
     def get_winner(self):
-        """ Get winner using Tromp-Taylor scoring """
+        """ Get the winner using Tromp-Taylor scoring """
 
         # Tromp-Taylor scoring https://github.com/openai/pachi-py/blob/master/pachi_py/pachi/board.c#L1556
         # is called by: https://github.com/openai/pachi-py/blob/master/pachi_py/goutil.cpp#L81
         # which is called by the python API: https://github.com/openai/pachi-py/blob/master/pachi_py/cypachi.pyx#L52
-        
-        # TODO: komi is already used by official_score, but is board->komi populated in C++? No so put it here
+        # Note: we don't have access to the komi variables through the pachi_py API, so we need to add it ourself
         score = self.komi + self.board.official_score
         white_wins = score > 0
         black_wins = score < 0
@@ -159,7 +190,7 @@ class GoGame():
         return reward
 
     def render(self):
-        """ Print the board for human """
+        """ Render the board in the console """
         outfile = sys.stdout
         outfile.write('To play: {}\n{}\n'.format(six.u(
                         pachi_py.color_to_str(self.player_color)),
