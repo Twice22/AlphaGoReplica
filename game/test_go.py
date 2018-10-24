@@ -80,6 +80,29 @@ class TestGoGame(unittest.TestCase):
 		self.assertEqual(game.done, True)
 		self.assertEqual(game.get_winner(), -1) # current player (black) lose
 
+	def test_state(self):
+		actions = [40, 38, 42, 21, 47, 46, 56, 39, 49, 55, 22, 13, 23,
+				   48, 57, 58, 67, 59, 68, 60, 64, 43, 34, 51, 41, 63,
+				   69, 70, 79, 61, 53, 65, 66, 73, 52, 75, 50, 76, 71,
+				   12, 14, 5, 6, 4, 15, 31, 32, 30, 62, 77, 78, 74]
+		board_size = 9
+
+		game = GoGame(player_color='black', board_size=board_size)
+		color = 0
+		list_states = []
+		for action in actions:
+			game.play_action(action)
+			list_states.append(np.array(game.board.encode()[color]))
+			color = 1 - color
+
+		state = list(game.state)[:-1]
+		while state:
+			s_from_state = state.pop(0)
+			s_from_ground_truth = list_states.pop()
+			np.testing.assert_array_equal(s_from_state, s_from_ground_truth)
+
+		# test that current player (which is the next player to play) is the value of the last row of game.state
+		np.testing.assert_array_equal(game.state[-1] - (game.player_color - 1), np.zeros((board_size, board_size)) )
 
 if __name__ == '__main__':
 	unittest.main()
