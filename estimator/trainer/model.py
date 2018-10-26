@@ -27,6 +27,21 @@ def create_estimator(params, config, model_dir):
 
 
 	def _model_fn(features, labels, mode, params):
+		"""
+		Args:
+			features (dict): dictionary that maps the key `x` to the
+				tensor representing the game: [batch_size, n_rows, n_cols, 17]
+			labels (dict): dictionary that maps the keys `pi`and `x` to their values
+				`pi`: [batch_size, n_rows * n_cols + 1]
+				`v`: [batch_size]
+			mode (tf.estimator.Modekeys): Tensorflow mode to use (TRAIN, EVALUATE, PREDICT)
+				needed in part because batchnormalization is different during training and
+				testing phase
+			params (dict): extra parameters (TODO: add extra params?)
+		Returns:
+			tf.estimator.EstimatorSpec (TODO: add description)
+		"""
+
 		""" Create the model structure and compute the output """
 		state_size = params.state_size # 17 for the game of Go
 		action_size = params.action_size
@@ -40,8 +55,8 @@ def create_estimator(params, config, model_dir):
 		predict = (mode == tf.estimator.ModeKeys.PREDICT)
 
 		# TODO: features is our placeholder
-		z = features["z"]
-		pi = features["pi"]
+		z = labels["z"]
+		pi = labels["pi"]
 		x = features["x"]
 
 		# Add regularizer
@@ -53,12 +68,13 @@ def create_estimator(params, config, model_dir):
 
 		# See under `Neural network architecture` of the paper
 		# Convolutional Layer #1
-		conv1 = tf.layers.con2d(
+		conv1 = tf.layers.conv2d(
 			inputs=input_layer,
 			filter=256,
 			kernel_size=[3, 3],
 			padding="same",
 			strides=1,
+			use_bias=False,
 			kernel_regularizer=reg
 		)
 
@@ -76,12 +92,13 @@ def create_estimator(params, config, model_dir):
 		for i in range(n_residual_blocks):
 
 			# Convolution Layer #1
-			res_conv1 = tf.layers.con2d(
+			res_conv1 = tf.layers.conv2d(
 				inputs=res_input_layer,
 				filter=256,
 				kernel_size=[3, 3],
 				padding="same",
 				strides=1,
+				use_bias=False,
 				kernel_regularizer=reg
 			)
 
@@ -95,12 +112,13 @@ def create_estimator(params, config, model_dir):
 			res_relu1 = tf.nn.relu(res_batch_norm1)
 
 			# Convolution Layer #2
-			res_conv2 = tf.layers.con2d(
+			res_conv2 = tf.layers.conv2d(
 				inputs=res_relu1,
 				filter=256,
 				kernel_size=[3, 3],
 				padding="same",
 				strides=1,
+				use_bias=False,
 				kernel_regularizer=reg
 			)
 
@@ -118,12 +136,13 @@ def create_estimator(params, config, model_dir):
 
 
 		### Policy Head ###
-		pol_conv = tf.layers.con2d(
+		pol_conv = tf.layers.conv2d(
 			inputs=res_input_layer,
 			filter=2,
 			kernel_size=[1, 1],
 			padding="same",
 			strides=1,
+			use_bias=False,
 			kernel_regularizer=reg
 		)
 
@@ -143,12 +162,13 @@ def create_estimator(params, config, model_dir):
 		p = tf.nn.softmax(logits)
 
 		### Value Head ###
-		val_conv = tf.layers.con2d(
+		val_conv = tf.layers.conv2d(
 			inputs=res_input_layer,
 			filter=1,
 			kernel_size=[1, 1],
 			padding="same",
 			strides=1,
+			use_bias=False,
 			kernel_regularizer=reg
 		)
 
