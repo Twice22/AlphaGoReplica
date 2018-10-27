@@ -58,8 +58,8 @@ def _format_state(history, player_color, board_size):
         according to the description under `Neural network architecture` page 8 of
         the paper
     """
-    color_to_play = np.full((1, board_size, board_size), player_color - 1)
-    final_state = np.concatenate((history, color_to_play), axis=0)
+    color_to_play = np.full((board_size, board_size, 1), player_color - 1)
+    final_state = np.concatenate((history, color_to_play), axis=-1)
     return final_state
 
 class GoGame():
@@ -80,7 +80,6 @@ class GoGame():
         self.player_color = colormap[player_color]
         self.reset()
 
-    # https://stackoverflow.com/questions/1500718/what-is-the-right-way-to-override-the-copy-deepcopy-operations-on-an-object-in-p
     def __deepcopy__(self):
         """ Clone the current instance of the game """
         cls = self.__class__
@@ -141,8 +140,8 @@ class GoGame():
         self.board = pachi_py.CreateBoard(self.board_size) # object with method
         self.done = self.board.is_terminal
 
-        self.history = np.zeros(( (HISTORY + 1) * 2, self.board_size, self.board_size), np.int8)
-        self.state = np.zeros(( (HISTORY + 1) * 2 + 1, self.board_size, self.board_size), dtype=np.int8)
+        self.history = np.zeros((self.board_size, self.board_size, (HISTORY + 1) * 2), dtype=np.int8)
+        self.state = np.zeros((self.board_size, self.board_size, (HISTORY + 1) * 2 + 1), dtype=np.int8)
 
         return self.state
 
@@ -170,8 +169,8 @@ class GoGame():
         color = self.player_color - 1
 
         # discard last state of the opponent player and add move of the current player to the state
-        self.history = np.roll(self.history, 1, axis=0)
-        self.history[0] = np.array(board[color])
+        self.history = np.roll(self.history, 1, axis=-1)
+        self.history[:,:,0] = np.array(board[color])
 
         # switch player
         self.player_color = pachi_py.stone_other(self.player_color)
