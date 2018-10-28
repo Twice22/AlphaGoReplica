@@ -16,7 +16,7 @@ dihedral_group = {
 transformations = list(dihedral_group.keys())
 
 # See Expand and evaluate (Fig. 2b) page 8 of the paper
-def sample_dihedral(final_state):
+def sample_symmetry(final_state):
 	"""
 		Sample a random dihedral reflections or rotations
 		of the state of the game `final_state`
