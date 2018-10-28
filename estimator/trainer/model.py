@@ -153,18 +153,19 @@ def create_estimator(params, config, model_dir):
 
 		pol_relu = tf.nn.relu(pol_batch_norm)
 
-		pol_flatten_relu = tf.reshape(relu, [-1, n_rows * n_cols * 2])
+		# TODO: change filter for variables
+		pol_flatten_relu = tf.reshape(relu, [-1, n_rows * n_cols * 2]) # 2 filters in pol_conv so * 2 here
 
 		logits = tf.layers.dense(inputs=pol_flatten_relu,
 								 units=action_size,
 								 kernel_regularizer=reg)
 
-		p = tf.nn.softmax(logits)
+		p = tf.nn.softmax(logits, name='policy_head')
 
 		### Value Head ###
 		val_conv = tf.layers.conv2d(
 			inputs=res_input_layer,
-			filter=1,
+			filter=1, # TODO: change for variables?
 			kernel_size=[1, 1],
 			padding="same",
 			strides=1,
@@ -179,21 +180,22 @@ def create_estimator(params, config, model_dir):
 
 		val_relu1 = tf.nn.relu(val_batch_norm)
 
-		val_flatten_relu = tf.reshape(val_relu1, [-1, action_size])
+		val_flatten_relu = tf.reshape(val_relu1, [-1, action_size * 1]) # if change for var, need to change 1 for var here
 
 		val_dense1 = tf.layers.dense(inputs=val_flatten_relu,
-									 units=256,
+									 units=256, # TODO: change for variables
 									 kernel_regularizer=reg
 		)
 
 		val_relu2 = tf.nn.relu(val_dense1)
 
+		# need a reshape?
 		val_dense2 = tf.layers.dense(inputs=val_relu2,
 									 units=1,
 									 kernel_regularizer=reg
 		)
 
-		v = tf.nn.tanh(val_dense2)
+		v = tf.nn.tanh(val_dense2, name='value_head')
 
 		loss = compute_loss(pi, z, p, v, c)
 
