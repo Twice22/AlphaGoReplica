@@ -34,7 +34,7 @@ class TestGoGame(unittest.TestCase):
 		game.reset()
 
 		self.assertEqual(game.done, False)
-		np.testing.assert_array_equal(game.state, np.zeros((17, board_size, board_size)))
+		np.testing.assert_array_equal(game.state, np.zeros((board_size, board_size, 17)))
 
 	def test_illegal_move(self):
 		game = GoGame(player_color='black', board_size=9)
@@ -95,14 +95,14 @@ class TestGoGame(unittest.TestCase):
 			list_states.append(np.array(game.board.encode()[color]))
 			color = 1 - color
 
-		state = list(game.state)[:-1]
+		state = list(np.transpose(game.state[:, :, :-1], (2,0,1)))
 		while state:
 			s_from_state = state.pop(0)
 			s_from_ground_truth = list_states.pop()
 			np.testing.assert_array_equal(s_from_state, s_from_ground_truth)
 
 		# test that current player (which is the next player to play) is the value of the last row of game.state
-		np.testing.assert_array_equal(game.state[-1] - (game.player_color - 1), np.zeros((board_size, board_size)) )
+		np.testing.assert_array_equal(game.state[:, :, -1] - (game.player_color - 1), np.zeros((board_size, board_size)) )
 
 if __name__ == '__main__':
 	unittest.main()
