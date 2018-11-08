@@ -3,11 +3,11 @@ import argparse
 
 import tensorflow as tf
 
-# TODO: other imports?
+from utils import create_configuration
 
 
-def initialize_hyper_parals(arg_parser):
-	"""
+def initialize_hyper_params(arg_parser):
+    """
     Define the arguments with the default values,
     parses the arguments passed to the task,
     and set the HYPER_PARAMS global variable
@@ -17,13 +17,13 @@ def initialize_hyper_parals(arg_parser):
 
 
     ###########################################
-    # 	  Experiment arguments - training     #
+    #     Experiment arguments - training     #
     ###########################################
     args_parser.add_argument(
-    	'--train-batch-size',
-    	help="Batch size for training steps",
-    	type=int,
-    	default=64
+        '--train-batch-size',
+        help="Batch size for training steps",
+        type=int,
+        default=64
     )
     args_parser.add_argument(
         '--n-epochs',
@@ -93,63 +93,69 @@ def initialize_hyper_parals(arg_parser):
     )
 
     ###########################################
-    # 	        Estimator arguments           #
+    #           Estimator arguments           #
     ###########################################
 
     # See page 18 of the paper
     args_parser.add_argument(
-    	'--learning_rates',
-    	help="Learning rate value for the optimizer",
-    	nargs='+',
-    	default=[0.01 0.001 0.0001], # Same in the paper
-    	type=float
+        '--learning_rates',
+        help="Learning rate value for the optimizer",
+        nargs='+',
+        default=[0.01, 0.001, 0.0001], # Same in the paper
+        type=float
     )
     args_parser.add_argument(
-    	'--learning_rates-scheduler',
-    	help="Number of step at which to decay the learning rate",
-    	nargs='+',
-    	default=[400000, 600000] # Same in the paper
+        '--learning_rates-scheduler',
+        help="Number of step at which to decay the learning rate",
+        nargs='+',
+        default=[400000, 600000] # Same in the paper
     )
     args_parser.add_argument(
-    	'--momentum_rate',
-    	help="Momentum rate value for the optimizer",
-    	default=0.9, # Same in the paper
-    	type=float
+        '--momentum_rate',
+        help="Momentum rate value for the optimizer",
+        default=0.9, # Same in the paper
+        type=float
     )
     args_parser.add_argument(
-    	'--n-res-blocks',
-    	help="Number of blocks for the residual tower",
-    	default=5 # 19 or 39 in the paper
+        '--n-res-blocks',
+        help="Number of blocks for the residual tower",
+        default=5 # 19 or 39 in the paper
     )
     args_parser.add_argument(
-    	'--l2_regularization'
-    	help="L2 regularization parameter for the weights",
-    	default=1e-4 # Same in the paper
+        '--l2_regularization',
+        help="L2 regularization parameter for the weights",
+        default=1e-4 # Same in the paper
     )
 
     ###########################################
     #              Game parameter             #
     ###########################################
 
-    args.parser.add_argument(
-        '--board-size',
+    args_parser.add_argument(
+        '--n-rows',
         help="Size of the Go board",
         default=9, # 19 (real size of the Go board) in the paper
         type=int
     )
-    args.parser.add_argument(
+    args_parser.add_argument(
+        '--n-cols',
+        help="Size of the Go board",
+        default=9, # 19 (real size of the Go board) in the paper
+        type=int
+    )
+    args_parser.add_argument(
         '--history',
         help="Number of last states to keep for non fully observable games",
         default=7, # Same in the paper
         type=int
     )
-    args.parser.add_argument(
+    args_parser.add_argument(
         '--win-ratio',
         help="Number of wins (in %) between the new and the old model to replace the old model by the new",
         default=55, # Same in the paper
         type=int
     )
-    args.parser.add_argument(
+    args_parser.add_argument(
         '--use-random-symmetry',
         help="Wether or not to use random symmetries during inference",
         default=True,
@@ -165,13 +171,13 @@ def initialize_hyper_parals(arg_parser):
         help="GCS location to write the checkpoints, logs and the export models",
         required=True
     )
-    args.parser.add_argument(
+    args_parser.add_argument(
         '--keep-checkpoint-max',
         help="Maximum checkpoints to keep on the disk",
         default=5,
         type=int
     )
-    args.parser.add_argument(
+    args_parser.add_argument(
         '--summary-step',
         help="Save summaries every this many steps",
         default=100,
@@ -182,7 +188,7 @@ def initialize_hyper_parals(arg_parser):
     #               TPU arguments             #
     ###########################################
     arg_parser.add_argument(
-        '--use-tpu'
+        '--use-tpu',
         help="Wether to use TPU for training", # needed because we need to convert the code for TPU
         default=False
     )
@@ -220,3 +226,10 @@ def run_experiment(run_config):
         to save, ...
 
      """
+     pass # not implemented yet
+
+# python task.py --job_dir "model"
+if __name__ == '__main__':
+    args_parser = argparse.ArgumentParser()
+    HYPER_PARAMS = initialize_hyper_params(args_parser)
+    create_configuration(HYPER_PARAMS.__dict__)

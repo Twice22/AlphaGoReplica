@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 import multiprocessing
+import config
 
 # see tutorials
 # http://www.machinelearninguru.com/deep_learning/tensorflow/basics/tfrecord/tfrecord.html
@@ -18,10 +19,11 @@ def _bytes_feature(value):
 def create_example(features, pi, v):
 	"""
 	Args:
-		features (np.array): dimension [board_size, board_size, 17] of uint8
+		features (np.array): dimension [n_rows, n_cols, n_stacks] of uint8
+			by default for the Go game n_stacks = 17
 		pi (np.array): label 1 representing the policy
-			of dimension [board_size ** 2 + 1] of float32
-		v (float): label 2 reprensting the value
+			of dimension [n_rows * n_cols + 1] of float32
+		v (float): label 2 representing the value
 	"""
 	features = {
 		'x': _bytes_features(features.toString()),
@@ -81,13 +83,16 @@ def read_records(batch_size, records, shuffle_records=True, shuffle_examples=Tru
 		# convert from a scalar string tensor to an uint8
 		# tensor of shape [board_size, board_size, 17]
 		x = decode_raw(d['x'], tf.uint8)
-		x = tf.reshape(x, [batch_size, board_size, board_size, 17]) # TODO: need to define board_size and features 17 (so that features can be either 1, ... 17, ...)
+		x = tf.reshape(x, [batch_size,
+						   config.n_rows,
+						   config.n_cols,
+						   (config.history + 1) * 2 + 1])
 		x = tf.cast(x, tf.float32) # need float32 to perform calculations in the Neural network
 
 		# convert pi from a scalar string tensor to a float32
 		# and reshape the tensor
 		pi = decode_raw(d['pi'], tf.float32)
-		pi = tf.reshape(pi, [batch_size, board_size ** 2 + 1]) # TODO: need to define n_rows and n_cols instead of board_size and use n_rows * n_cols + 1
+		pi = tf.reshape(pi, [batch_size, config.n_rows * config.n_cols + 1])
 
 		# d['v'] is already a float32 we just need to reshape it
 		# to have [batch_size] dimension
@@ -97,7 +102,7 @@ def read_records(batch_size, records, shuffle_records=True, shuffle_examples=Tru
 
 	dataset = dataset.map(parser, num_parallel_calls=num_threads)
 	if shuffle_examples:
-		dataset = dataset.shuffle(buffer_size=1000)
+		dataset = dataset.shuffle(buffer_size=1000) # define buffer_size
 	dataset = dataset.repeat(n_repeats).batch(batch_size)
 
 	return dataset
