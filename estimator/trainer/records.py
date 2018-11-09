@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
+import symmetries
 import multiprocessing
 import config
 
@@ -16,22 +17,22 @@ def _bytes_feature(value):
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-def create_example(features, pi, v):
+def create_example(x, pi, v):
 	"""
 	Args:
-		features (np.array): dimension [n_rows, n_cols, n_stacks] of uint8
+		x (np.array): dimension [n_rows, n_cols, n_stacks] of uint8
 			by default for the Go game n_stacks = 17
 		pi (np.array): label 1 representing the policy
 			of dimension [n_rows * n_cols + 1] of float32
 		v (float): label 2 representing the value
 	"""
 	features = {
-		'x': _bytes_features(features.toString()),
+		'x': _bytes_features(x.toString()),
 		'pi': _bytes_features(pi.toString()),
 		'v': _float_features(v)
 	}
 
-	example = tf.train.Example(features=tf.train.Features(feature=feature))
+	example = tf.train.Example(features=tf.train.Features(feature=features))
 
 	return example
 
@@ -48,7 +49,7 @@ def write_records(filename, examples):
 
 	writer.close()
 
-def read_records(batch_size, records, shuffle_records=True, shuffle_examples=True, n_repeats=1):
+def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_repeats=1):
 
 	num_threads = multiprocessing.cpu_count() if multi_threading else 1
 
@@ -62,6 +63,10 @@ def read_records(batch_size, records, shuffle_records=True, shuffle_examples=Tru
                                      tf.data.TFRecordDataset(
                                          x, compression_type='GZIP'),
                                      	 cycle_length=64, block_length=16)
+
+	if buffer_size:
+		dataset = dataset.shuffle(buffer_size=buffer_size)
+	dataset = dataset.repeat(n_repeats).batch(batch_size)
 
     # see example at the end of 
     # https://www.tensorflow.org/guide/datasets#consuming_numpy_arrays
@@ -101,22 +106,46 @@ def read_records(batch_size, records, shuffle_records=True, shuffle_examples=Tru
 		return x, {'pi': pi, 'v': v}
 
 	dataset = dataset.map(parser, num_parallel_calls=num_threads)
-	if shuffle_examples:
-		dataset = dataset.shuffle(buffer_size=1000) # define buffer_size
-	dataset = dataset.repeat(n_repeats).batch(batch_size)
 
 	return dataset
 
-def generate_input(batch_size, records, shuffle_records=True, shuffle_examples=True, n_repeats=1):
+# the arguments of this function are the returnes values of the
+# parser function
+def apply_transformations(input_x, output_dict):
+	"""
+	Args:
+		input_x (np.array): np.array of dimension [batch_size, n_rows, n_cols, n_stacks],
+			where n_stacks = 17 for the Go game by default
+		output_dict (dict): {'pi': pi, 'v': v} see the returned value of the parser function
+	Returns:
+		transformed_input_x (np.array): input_x that underwent random dihedral transformations
+		output_dict (dict): same as output_dict beside output_dict["pi"] that is changed according to
+			the transformations underwent by the input state `input_x`
+	"""
+	transformations, transformed_input_x = symmetries.batch_symmetries(input_x)
+
+	# need to transform the policy `pi` to fit the transformed_input_x
+	output_dict["pi"] = [symmetries.transform_pi(pi, transformation) for pi, transformation in
+															 zip(output_dict["pi"], transformations)]
+
+	# TODO: need tf.py_func?
+
+	return transformed_input_x, output_dict
+
+
+def generate_input(batch_size, records, shuffle_records=True, buffer_size=1000,
+				   enable_transformations=False, n_repeats=1):
 	dataset = read_records(
 		batch_size,
 		records,
 		shuffle_records,
-		shuffle_examples,
+		buffer_size,
 		n_repeats
 	)
 
-	# TODO: add dihedral transformations?
+	
+	if enable_transformations:
+		dataset = dataset.map(apply_transformations)
 
     iterator = dataset.make_one_shot_iterator()
     return iterator.get_next()
