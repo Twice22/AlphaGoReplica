@@ -126,6 +126,26 @@ def initialize_hyper_params(arg_parser):
         help="L2 regularization parameter for the weights",
         default=1e-4 # Same in the paper
     )
+    args_parser.add_argument(
+        '--pol-conv-width',
+        help="Number of filters for the policy head",
+        default=2 # 2 in the paper
+    )
+    args_parser.add_argument(
+        '--val-conv-width',
+        help="Number of filters for the value head",
+        default=1 # 1 in the paper
+    )
+    args_parser.add_argument(
+        '--conv-width',
+        help="Number of filters for the convolutional layers",
+        default=256 # 256 in the paper
+    )
+    args_parser.add_argument(
+        '--fc_width',
+        help="Number of units for the dense layer",
+        default=256 # 256 in the paper
+    )
 
     ###########################################
     #              Game parameter             #
@@ -180,7 +200,7 @@ def initialize_hyper_params(arg_parser):
     args_parser.add_argument(
         '--summary-step',
         help="Save summaries every this many steps",
-        default=100,
+        default=256,
         type=int
     )
 
