@@ -129,7 +129,6 @@ def apply_transformations(input_x, output_dict):
 															 zip(output_dict["pi"], transformations)]
 
 	# TODO: need tf.py_func?
-
 	return transformed_input_x, output_dict
 
 
@@ -149,3 +148,10 @@ def generate_input(batch_size, records, shuffle_records=True, buffer_size=1000,
 
     iterator = dataset.make_one_shot_iterator()
     return iterator.get_next()
+
+# see step 3: https://cloud.google.com/blog/big-data/2018/02/easy-distributed-training-with-tensorflow-using-tfestimatortrain-and-evaluate-on-cloud-ml-engine
+def serving_input_receiver_fn():
+    feature_tensor = {"x": tf.placeholder(dtype=tf.float32,
+    									  shape=[None, config.n_rows, config.n_cols, (config.history + 1) * 2 + 1],
+    									  name='x')}
+    return tf.estimator.export.ServingInputReceiver(feature_tensor, feature_tensor)
