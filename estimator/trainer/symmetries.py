@@ -13,6 +13,17 @@ dihedral_group = {
     'reflectrot270': lambda x: np.fliplr(np.rot90(x, k=3))
 }
 
+revert_transformations = {
+	'identity': 'identity',
+	'rot90': 'rot270',
+	'rot180': 'rot180',
+	'rot270': 'rot90',
+	'reflect': 'reflect',
+	'reflectrot90': 'reflectrot90',
+	'reflectrot180': 'reflectrot180',
+	'reflectrot270': 'reflectrot270'
+}
+
 transformations = list(dihedral_group.keys())
 
 # See Expand and evaluate (Fig. 2b) page 8 of the paper
@@ -79,7 +90,7 @@ def transform_pi(pi, transformation):
 	"""
 		Transform pi according to the transformation
 	Args:
-		pi (np.array): array of size [batch_size, n_rows * n_cols + 1]
+		pi (np.array): array of size [n_rows * n_cols + 1]
 		transformations (str): name of the transformation to apply to the policy `pi`
 	Returns:
 		transformed_pi (np.array): name of the transformation to apply to the policy `pi`
@@ -88,3 +99,16 @@ def transform_pi(pi, transformation):
 	transformed_pi[:-1] = dihedral_group[transformation](pi[:-1].reshape(config.n_rows, config.n_cols)).flatten()
 	return transformed_pi
 
+def unsymmetrize_pi(pis, transformations):
+	"""
+		Reorder pi according to the original non symmetrized board
+	Args:
+		pis (np.array): array of size [batch_size, n_rows * n_cols + 1]. This
+			function is used in model with batch_size=1
+		transformations (np.array[str]): array of symmetries applied to the original
+			board
+	Returns:
+		(np.array): reordered policy pi according to the original non symmetrized board
+	"""
+	return np.array([transform_pi(pi, revert_transformations[transformation]) for pi, transformation in
+					 zip(pis, transformations)])

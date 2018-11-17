@@ -342,3 +342,22 @@ class NeuralNetwork():
                 self.load_weights(self.weights_file)
             else:
                 self.sess.run(tf.global_variables_initializer())
+
+    # inference
+    def run(self, game):
+        # retrieve the [n_rows, n_cols, 17] features (17 is by default)
+        # need a batch of size 1: [1, n_rows, n_cols, 17]
+        features = np.array([game.state])
+
+        if config.use_random_symmetry:
+            transformations, features = symmetries.batch_symmetries(features)
+
+        outputs = self.sess.run(self.predictions, feed_dict={self.features: features})
+        probs, value = outputs['p'], outputs['v']
+
+        # need to retrieve the probabilities 
+        # associate to the real state of the game
+        if config.use_random_symmetry:
+            probs = symmetries.unsymmetrize_pi(pi, transformations)
+
+        return probs, values
