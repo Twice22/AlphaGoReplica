@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 import symmetries
+import random
 import multiprocessing
 import config
 
@@ -14,7 +15,7 @@ def _float_feature(value):
 	return tf.train.Feature(float_list=tf.train.FloatList(value=[value]))
 
 def _bytes_feature(value):
-  return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+	return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
 def create_example(x, pi, v):
@@ -27,9 +28,9 @@ def create_example(x, pi, v):
 		v (float): label 2 representing the value
 	"""
 	features = {
-		'x': _bytes_features(x.toString()),
-		'pi': _bytes_features(pi.toString()),
-		'v': _float_features(v)
+		'x': _bytes_feature(x.toString()),
+		'pi': _bytes_feature(pi.toString()),
+		'v': _float_feature(v)
 	}
 
 	example = tf.train.Example(features=tf.train.Features(feature=features))
@@ -53,25 +54,25 @@ def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_
 
 	num_threads = multiprocessing.cpu_count() if multi_threading else 1
 
-    records = list(records)
-    if shuffle_records:
-        random.shuffle(records)
+	records = list(records)
+	if shuffle_records:
+		random.shuffle(records)
 
-    record_list = tf.data.Dataset.from_tensor_slices(records)
+	record_list = tf.data.Dataset.from_tensor_slices(records)
 
-    dataset = record_list.interleave(lambda x:
-                                     tf.data.TFRecordDataset(
-                                         x, compression_type='GZIP'),
-                                     	 cycle_length=64, block_length=16)
+	dataset = record_list.interleave(lambda x:
+									 tf.data.TFRecordDataset(
+										 x, compression_type='GZIP'),
+									 cycle_length=64, block_length=16)
 
 	if buffer_size:
 		dataset = dataset.shuffle(buffer_size=buffer_size)
 	dataset = dataset.repeat(n_repeats).batch(batch_size)
 
-    # see example at the end of 
-    # https://www.tensorflow.org/guide/datasets#consuming_numpy_arrays
-    def parser(record):
-    	# FixedLenFeature is used to parse a fixed-length
+	# see example at the end of
+	# https://www.tensorflow.org/guide/datasets#consuming_numpy_arrays
+	def parser(record):
+		# FixedLenFeature is used to parse a fixed-length
 		# input feature. Here we know for sure that all features
 		# are always pass together so we don't need to pass
 		# a `default_value`. See examples here:
@@ -126,7 +127,7 @@ def apply_transformations(input_x, output_dict):
 
 	# need to transform the policy `pi` to fit the transformed_input_x
 	output_dict["pi"] = [symmetries.transform_pi(pi, transformation) for pi, transformation in
-															 zip(output_dict["pi"], transformations)]
+						 zip(output_dict["pi"], transformations)]
 
 	# TODO: need tf.py_func?
 	return transformed_input_x, output_dict
@@ -142,16 +143,16 @@ def generate_input(batch_size, records, shuffle_records=True, buffer_size=1000,
 		n_repeats
 	)
 
-	
+
 	if enable_transformations:
 		dataset = dataset.map(apply_transformations)
 
-    iterator = dataset.make_one_shot_iterator()
-    return iterator.get_next()
+	iterator = dataset.make_one_shot_iterator()
+	return iterator.get_next()
 
 # see step 3: https://cloud.google.com/blog/big-data/2018/02/easy-distributed-training-with-tensorflow-using-tfestimatortrain-and-evaluate-on-cloud-ml-engine
 def serving_input_receiver_fn():
-    feature_tensor = {"x": tf.placeholder(dtype=tf.float32,
-    									  shape=[None, config.n_rows, config.n_cols, (config.history + 1) * 2 + 1],
-    									  name='x')}
-    return tf.estimator.export.ServingInputReceiver(feature_tensor, feature_tensor)
+	feature_tensor = {"x": tf.placeholder(dtype=tf.float32,
+										  shape=[None, config.n_rows, config.n_cols, (config.history + 1) * 2 + 1],
+										  name='x')}
+	return tf.estimator.export.ServingInputReceiver(feature_tensor, feature_tensor)

@@ -7,9 +7,11 @@ import sys
 import six
 import pachi_py
 
+from copy import deepcopy
+
 # TODO: change for a variable using parser for HISTORY
 # TODO: define komi variable: either 6.5 or 7.5
-HISTORY = 7
+HISTORY = 8
 
 # The coordinate representation of Pachi (and pachi_py) is defined on a board
 # with extra rows and columns on the margin of the board, so positions on the board
@@ -80,7 +82,7 @@ class GoGame():
         self.player_color = colormap[player_color]
         self.reset()
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo):
         """ Clone the current instance of the game """
         cls = self.__class__
         result = cls.__new__(cls)
@@ -140,8 +142,8 @@ class GoGame():
         self.board = pachi_py.CreateBoard(self.board_size) # object with method
         self.done = self.board.is_terminal
 
-        self.history = np.zeros((self.board_size, self.board_size, (HISTORY + 1) * 2), dtype=np.int8)
-        self.state = np.zeros((self.board_size, self.board_size, (HISTORY + 1) * 2 + 1), dtype=np.int8)
+        self.history = np.zeros((self.board_size, self.board_size, HISTORY * 2), dtype=np.int8)
+        self.state = np.zeros((self.board_size, self.board_size, HISTORY * 2 + 1), dtype=np.int8)
 
         return self.state
 
@@ -170,7 +172,7 @@ class GoGame():
 
         # discard last state of the opponent player and add move of the current player to the state
         self.history = np.roll(self.history, 1, axis=-1)
-        self.history[:,:,0] = np.array(board[color])
+        self.history[:, :, 0] = np.array(board[color])
 
         # switch player
         self.player_color = pachi_py.stone_other(self.player_color)

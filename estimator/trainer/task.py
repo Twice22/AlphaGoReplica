@@ -166,7 +166,7 @@ def initialize_hyper_params(arg_parser):
     args_parser.add_argument(
         '--history',
         help="Number of last states to keep for non fully observable games",
-        default=7, # Same in the paper
+        default=8, # Same in the paper
         type=int
     )
     args_parser.add_argument(

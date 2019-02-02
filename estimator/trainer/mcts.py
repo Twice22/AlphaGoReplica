@@ -1,3 +1,5 @@
+import numpy as np
+
 EPSILON = 0.25
 ETA = 0.03
 C_PUCT = 0.2

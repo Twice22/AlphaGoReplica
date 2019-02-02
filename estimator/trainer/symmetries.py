@@ -26,6 +26,7 @@ revert_transformations = {
 
 transformations = list(dihedral_group.keys())
 
+
 # See Expand and evaluate (Fig. 2b) page 8 of the paper
 def sample_symmetry(final_state):
 	"""
@@ -44,6 +45,7 @@ def sample_symmetry(final_state):
 	# select random transformation
 	transform_str = np.random.choice(transformations)
 	return dihedral_group[transform_str](final_state)
+
 
 # See (4) Under `Domain knowledge` page 7 of the paper. This
 # function is used to augment the dataset with all the dihedral
@@ -86,6 +88,7 @@ def batch_symmetries(batch_states):
 
 	return applied_transformations, trasnformed_batch_states
 
+
 def transform_pi(pi, transformation):
 	"""
 		Transform pi according to the transformation
@@ -98,6 +101,7 @@ def transform_pi(pi, transformation):
 	transformed_pi = np.copy(pi)
 	transformed_pi[:-1] = dihedral_group[transformation](pi[:-1].reshape(config.n_rows, config.n_cols)).flatten()
 	return transformed_pi
+
 
 def unsymmetrize_pi(pis, transformations):
 	"""

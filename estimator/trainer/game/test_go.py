@@ -76,7 +76,7 @@ class TestGoGame(unittest.TestCase):
 		game = GoGame(player_color='black', board_size=9)
 		for action in actions:
 			game.play_action(action)
-		
+
 		self.assertEqual(game.done, True)
 		self.assertEqual(game.get_winner(), -1) # current player (black) lose
 

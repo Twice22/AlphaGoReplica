@@ -22,7 +22,7 @@ class DisplayStepsPerSecond(tf.train.StepCounterHook):
 
 class UpdateRatioSessionHook(tf.train.SessionRunHook):
     """A hook that computes ||grad|| / ||weights|| with frobenius norm"""
-    
+
 
 def train(*tf_records):
     """

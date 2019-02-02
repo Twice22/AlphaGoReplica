@@ -1,6 +1,7 @@
-import os
+import numpy as np
+import trainer.game.symmetries as symmetries
 import tensorflow as tf
-import config
+import trainer.game.config as config
 
 import functools
 
@@ -16,12 +17,13 @@ def get_inputs():
     """
         Create the placeholders for the features and the labels
     """
-    feature = {"x": tf.placeholder(dtype=tf.float32,
-                                          shape=[None, config.n_rows, config.n_cols, (config.history + 1) * 2 + 1],
+    features = {"x": tf.placeholder(dtype=tf.float32,
+                                          shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
                                           name='x')}
-    
+
+    # +1 for the terminal state
     labels = {'pi': tf.placeholder(tf.float32, [None, config.n_rows * config.cols + 1]),
-              'z': tf.placeholder(tf.float32, [None])} # TODO: check if it's z or v?
+              'z': tf.placeholder(tf.float32, [None])}
 
     return features, labels
 
@@ -47,8 +49,10 @@ def create_estimator(run_config):
 def compute_loss(pi, z, p, v):
     cross_entropy = tf.losses.softmax_cross_entropy(onehot_labels=pi,
                                                     logits=p)
+
+    # TODO: reshape and add parameterlambda * tf.losses.mean_squared_error
     mean_square = tf.losses.mean_squared_error(labels=z,
-                                               predictions=v) # TODO: reshape?
+                                               predictions=v)
 
     regularization = tf.losses.get_regularization_loss()
 
@@ -61,21 +65,38 @@ def model_fn(features, labels, mode, params):
 
     Args:
         features (dict): dictionary that maps the key `x` to the
-            tensor representing the game: [batch_size, n_rows, n_cols, 17]
+            tensor representing the game: [config.n_rows, config.n_cols, config.history * 2 + 1]
         labels (dict): dictionary that maps the keys `pi`and `x` to their values
-            `pi`: [batch_size, n_rows * n_cols + 1]
-            `v`: [batch_size]
+            `pi`: [batch_size, config.n_rows * config.n_cols + 1]
+            `z`: [batch_size]
         mode (tf.estimator.Modekeys): Tensorflow mode to use (TRAIN, EVALUATE, PREDICT)
-            needed in part because batchnormalization is different during training and
+            needed in part because batch Normalization is different during training and
             testing phase
-        params (dict): extra parameters (TODO: add extra params?)
+        params (dict): extra parameters of the Neural Net coming from the `config.py` file
+            created by the `task.py` file
     Returns:
-        tf.estimator.EstimatorSpec (TODO: add description)
+        tf.estimator.EstimatorSpec with given properties:
+        mode: same as the input mode
+        predictions: dict of tensors
+            {
+                'p': [batch_size, config.n_rows * config.n_cols + 1],
+                'v': [batch_size]
+            }
+        loss: the loss
+        train_op: the training operation
+        eval_metric_ops: dictionary of metrics to evaluate the network
+            {
+                'pol_cost': tf.metrics.mean(cross_entropy),
+                'val_cost': tf.metrics.mean(mean_square),
+                'reg_cost': tf.metrics.mean(regularization),
+                'pol_entropy': tf.metrics.mean(pol_entropy),
+                'loss': tf.metrics.mean(loss)
+            }
     """
 
-    state_size = params['state_size'] # 17 by default for the game of Go
+    state_size = params['history'] * 2 + 1 # 17 by default for the game of Go
     n_rows = params['n_rows']
-    n_cols = parasm['n_cols']
+    n_cols = params['n_cols']
     n_residual_blocks = params['n_res_blocks']
     c = params['l2_regularization'] # normalization cst: 1e-4 by default (p8 under Optimization)
     conv_width = params['conv_width']
@@ -88,7 +109,7 @@ def model_fn(features, labels, mode, params):
     summary_step = params['summary_step'] # Number of steps before we log summary scalars
 
     training = (mode == tf.estimator.ModeKeys.TRAIN)
-    evaluate = (mode == tf.estimator.ModeKeys.TRAIN)
+    evaluate = (mode == tf.estimator.ModeKeys.EVALUATE)
     predict = (mode == tf.estimator.ModeKeys.PREDICT)
 
     # features is our placeholder
@@ -194,7 +215,7 @@ def model_fn(features, labels, mode, params):
 
     pol_relu = tf.nn.relu(pol_batch_norm)
 
-    pol_flatten_relu = tf.reshape(relu, [-1, n_rows * n_cols * pol_conv_width]) # 2 filters by default in pol_conv so (* 2) here
+    pol_flatten_relu = tf.reshape(pol_relu, [-1, n_rows * n_cols * pol_conv_width]) # 2 filters by default in pol_conv so (* 2) here
 
     logits = tf.layers.dense(inputs=pol_flatten_relu,
                              units=n_rows * n_cols + 1,
@@ -224,13 +245,12 @@ def model_fn(features, labels, mode, params):
     val_flatten_relu = tf.reshape(val_relu1, [-1, val_conv_width * n_rows * n_cols]) # number of squares in the board
 
     val_dense1 = tf.layers.dense(inputs=val_flatten_relu,
-                                 units=fc_width # 256 by default in the paper
-                                 kernel_regularizer=reg
-    )
+                                 units=fc_width, # 256 by default in the paper
+                                 kernel_regularizer=reg)
 
     val_relu2 = tf.nn.relu(val_dense1)
 
-    # need a reshape?
+    # TODO: need a reshape?
     val_dense2 = tf.layers.dense(inputs=val_relu2,
                                  units=1,
                                  kernel_regularizer=reg
@@ -238,10 +258,14 @@ def model_fn(features, labels, mode, params):
 
     v = tf.nn.tanh(val_dense2, name='value_head')
 
-    cross_entropy, mean_square, regularization = compute_loss(pi, z, p, v)
-    loss = cross_entropy + mean_square + regularization
+    # policy_output, value_output, logits = p, v, logits
+    # line 219
 
-    global_step = tf.train.get_global_step()
+    cross_entropy, mean_square, regularization = compute_loss(pi, z, p, v)
+    loss = cross_entropy + mean_square + regularization  # line 232
+
+    # depending if we have loaded previous weights or not
+    global_step = tf.train.get_or_create_global_step()
 
     learning_rate = tf.train.piecewise_constant(global_step, lr_boundaries, lr_values)
 
@@ -276,13 +300,13 @@ def model_fn(features, labels, mode, params):
     
     if predict:
         predictions = {
-            'p': p, # TODO: maybe need p[0]
-            'v': v # TODO: maybe need v[0][0]
+            'p': p,  # TODO: maybe need p[0]
+            'v': v  # TODO: maybe need v[0][0]
         }
 
         return tf.estimator.EstimatorSpec(
             mode,
-            predictions=predictions) # TODO: define export_outputs?
+            predictions=predictions)  # TODO: define export_outputs?
 
 
     # stochastic gradient decent with momentum=0.9
@@ -304,7 +328,7 @@ def model_fn(features, labels, mode, params):
         return tf.estimator.EstimatorSpec(
             mode,
             loss=loss,
-            train_op=train_op) # TODO: define hooks?
+            train_op=train_op)  # TODO: define hooks?
 
 
 
@@ -314,8 +338,7 @@ class NeuralNetwork():
         self.features = None
         self.predictions = None
 
-        # see https://www.tensorflow.org/guide/using_gpu for
-        # GPU usage
+        # see https://www.tensorflow.org/guide/using_gpu for GPU usage
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 0.8
 
@@ -325,7 +348,8 @@ class NeuralNetwork():
 
     def load_weights(self, weights_file):
         """
-            Load the weights from the weights_file
+            Load the weights from the weights_file. Used to
+            load the weights of the updated version of the player
         """
         tf.train.Saver().restore(self.sess, weights_file)
 
@@ -338,8 +362,8 @@ class NeuralNetwork():
             self.predictions = estimator_spec.predictions
 
             # load weights if exist
-            if self.weights_file is not None:
-                self.load_weights(self.weights_file)
+            if self.weights is not None:
+                self.load_weights(self.weights)
             else:
                 self.sess.run(tf.global_variables_initializer())
 
@@ -353,11 +377,11 @@ class NeuralNetwork():
             transformations, features = symmetries.batch_symmetries(features)
 
         outputs = self.sess.run(self.predictions, feed_dict={self.features: features})
-        probs, value = outputs['p'], outputs['v']
+        probs, values = outputs['p'], outputs['v']
 
         # need to retrieve the probabilities 
         # associate to the real state of the game
         if config.use_random_symmetry:
-            probs = symmetries.unsymmetrize_pi(pi, transformations)
+            probs = symmetries.unsymmetrize_pi(probs, transformations)
 
         return probs, values
