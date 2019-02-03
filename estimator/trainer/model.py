@@ -28,15 +28,18 @@ def get_inputs():
     return features, labels
 
 # TODO: Call it in task.py or train.py (to create)
-def create_estimator(run_config):
+def create_estimator():
     """
     Create a custom estimator based on model_fn
 
-    Args:
-        config (tf.estimator.RunConfig): define the runtime environment for the estimator
     Returns:
         Estimator
     """
+    run_config = tf.estimator.RunConfig(
+        save_summary_steps=config.summary_steps,
+        keep_checkpoint_max=config.keep_checkpoint_max
+    )
+
     estimator = tf.estimator.Estimator(model_fn=model_fn,
                                        params=get_vars(),
                                        config=run_config,
@@ -385,3 +388,22 @@ class NeuralNetwork():
             probs = symmetries.unsymmetrize_pi(probs, transformations)
 
         return probs, values
+
+
+def export_model(model_path):
+    """Take the latest checkpoint and copy it to model_path
+
+    Args:
+        model_path: The path to export the model
+    """
+    estimator = tf.estimator.Estimator(model_fn,
+                                       model_dir=config.job_dir,
+                                       params=get_vars())
+
+    latest_checkpoint = estimator.latest_checkpoint()
+    all_checkpoint_files = tf.gfile.Glob(latest_checkpoint + '*')
+    for filename in all_checkpoint_files:
+        suffix = filename.partition(latest_checkpoint)[2]
+        destination_path = model_path + suffix
+        print("Copying {} to {}".format(filename, destination_path))
+        tf.gfile.Copy(filename, destination_path)
