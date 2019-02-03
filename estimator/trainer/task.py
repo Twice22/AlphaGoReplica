@@ -31,7 +31,25 @@ def initialize_hyper_params(arg_parser):
         type=int,
         default=100
     )
-
+    args_parser.add_argument(
+        '--steps-to-train',
+        help="Number of training steps to take, If not set \
+             iterates once over the training data",
+        type=int,
+        default=None
+    )
+    args_parser.add_argument(
+        '--shuffle-buffer-size',
+        help="Size of buffer used to shuffle train examples",
+        type=int,
+        default=2000
+    )
+    args_parser.add_argument(
+        '--export-path',
+        help='Where to export the model after training',
+        type=str,
+        default=None
+    )
 
     ###########################################
     #    Experiment arguments - evaluation    #
@@ -98,7 +116,7 @@ def initialize_hyper_params(arg_parser):
 
     # See page 18 of the paper
     args_parser.add_argument(
-        '--learning_rates',
+        '--learning-rates',
         help="Learning rate value for the optimizer",
         nargs='+',
         default=[0.01, 0.001, 0.0001], # Same in the paper
@@ -111,7 +129,7 @@ def initialize_hyper_params(arg_parser):
         default=[400000, 600000] # Same in the paper
     )
     args_parser.add_argument(
-        '--momentum_rate',
+        '--momentum-rate',
         help="Momentum rate value for the optimizer",
         default=0.9, # Same in the paper
         type=float
@@ -145,6 +163,18 @@ def initialize_hyper_params(arg_parser):
         '--fc_width',
         help="Number of units for the dense layer",
         default=256 # 256 in the paper
+    )
+    args_parser.add_argument(
+        '--summary-steps',
+        help="Number of steps between logging summary scalars",
+        type=int,
+        default=256
+    )
+    args_parser.add_argument(
+        '--keep_checkpoint_max',
+        help="Number of checkpoints to keep",
+        type=int,
+        default=5
     )
 
     ###########################################
@@ -187,7 +217,7 @@ def initialize_hyper_params(arg_parser):
     ###########################################
 
     args_parser.add_argument(
-        '--job_dir',
+        '--job-dir',
         help="GCS location to write the checkpoints, logs and the export models",
         required=True
     )
@@ -204,18 +234,6 @@ def initialize_hyper_params(arg_parser):
         type=int
     )
 
-    ###########################################
-    #               TPU arguments             #
-    ###########################################
-    arg_parser.add_argument(
-        '--use-tpu',
-        help="Wether to use TPU for training", # needed because we need to convert the code for TPU
-        default=False
-    )
-
-    # TODO: add TPU arguments if we want to
-    # be able to train the model using TPU.
-    # need to use TPU estimators...
 
 
     ###########################################
