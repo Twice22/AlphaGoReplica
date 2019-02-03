@@ -1,9 +1,8 @@
 import tensorflow as tf
-import numpy as np
 
+import multiprocessing
 import symmetries
 import random
-import multiprocessing
 import config
 
 # see tutorials
@@ -50,7 +49,8 @@ def write_records(filename, examples):
 
 	writer.close()
 
-def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_repeats=1):
+def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_repeats=1,
+				 multi_threading=True):
 
 	num_threads = multiprocessing.cpu_count() if multi_threading else 1
 
