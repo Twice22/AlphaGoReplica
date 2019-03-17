@@ -27,7 +27,6 @@ def gtp_color(color):
     return {BLACK: "B", WHITE: "W"}[color]
 
 
-# TODO: remove gtp_vertex
 def coord_to_gtp(action, board_size):
     """ From 1D coord (0 for position (0,0)) to J1 """
 
@@ -37,15 +36,15 @@ def coord_to_gtp(action, board_size):
         return "pass"
     elif action == board_size ** 2 + 1:
         return 'resign'
-    return "{}{}".format("ABCDEFGHJKLMNOPQRSTYVWYZ"[coord % board_size],\
-        board_size - coord // board_size)
+    return "{}{}".format("ABCDEFGHJKLMNOPQRSTYVWYZ"[action % board_size],\
+        board_size - action // board_size)
 
 
-def gtp_coord(gtp_action, board_size):
+def gtp_to_coord(gtp_action, board_size):
     """ From gtp coord to pachi coord """
-    if gtp_coord == "pass":
+    if gtp_action == "pass":
         return board_size ** 2
-    elif gtp_coord == "resign":
+    elif gtp_action == "resign":
         return board_size ** 2 + 1
 
     assert len(gtp_action) == 2
@@ -53,9 +52,6 @@ def gtp_coord(gtp_action, board_size):
     x = "ABCDEFGHJKLMNOPQRSTYVWYZ".index(letter) + 1
     y = board_size - int(digit)
     return y * board_size + x - 1
-
-def gtp_move(color, vertex):
-    return " ".join([gtp_color(color), gtp_vertex(vertex)])
 
 
 def parse_message(message):
@@ -78,7 +74,7 @@ WHITE = -1
 BLACK = +1
 EMPTY = 0
 
-PASS = (0, 0) # TODO: delete this with vertex_in_range?
+PASS = (0, 0)  # TODO: delete this with vertex_in_range?
 RESIGN = "resign"
 
 
@@ -139,7 +135,7 @@ class Engine(object):
             try:
                 return format_success(
                     message_id, getattr(self, "cmd_" + command)(arguments))
-            except ValueError as exception: # TODO: do we need to delete this?
+            except ValueError as exception:  # TODO: do we need to delete this?
                 return format_error(message_id, exception.args[0])
         else:
             return format_error(message_id, "unknown command")
@@ -202,7 +198,7 @@ class Engine(object):
     def cmd_genmove(self, arguments):
         c = parse_color(arguments)
         if c:
-            move = self._game.get_move(c) # TODO: change for solo_play
+            move = self._game.get_move(c)  # TODO: change for solo_play
             return coord_to_gtp(move, self.board_size)
         else:
             raise ValueError("unknown player: {}".format(arguments))
