@@ -3,14 +3,19 @@ Usage:
   python train.py tfrecord1 tfrecord2 tfrecord3
 """
 
-
 import logging
 
 import numpy as np
 import tensorflow as tf
-import trainer.game.model as model
-import trainer.game.config as config
-import trainer.game.records as records
+import model
+import config
+import records
+import utils
+import game.go as go
+
+from glob import glob
+from self_play import run_game
+from evaluate import evaluate
 
 
 # Note: StepCounterHook inherits from SessionRunHook
@@ -20,7 +25,7 @@ class DisplayStepsPerSecond(tf.train.StepCounterHook):
     """hook that LOGS steps per second"""
 
     # Note: we redefine the _log_and_record method
-    # See: https://github.com/tensorflow/tensorflow/blob/r1.12/tensorflow/python/training/basic_session_run_hooks.py#L674
+    # See https://github.com/tensorflow/tensorflow/blob/r1.12/tensorflow/python/training/basic_session_run_hooks.py#L674
     def _log_and_record(self, elapsed_steps, elapsed_time, global_step):
         s_per_sec = elapsed_steps / elapsed_time
         logging.log("{}: {:.3f} steps per second".format(global_step, s_per_sec))
@@ -34,6 +39,9 @@ def compute_update_ratio(weight_tensors, before_weights, after_weights):
     delta_norms = [np.linalg.norm(d.ravel()) for d in deltas]
     weight_norms = [np.linalg.norm(w.ravel()) for w in before_weights]
     ratios = [d / w for d, w in zip(delta_norms, weight_norms)]
+
+    # save all the grads / weights of all weights of the model into summary
+    # See https://github.com/tensorflow/tensorflow/blob/r1.12/tensorflow/core/framework/summary.proto
     all_summaries = [
         tf.Summary.Value(tag='update_ratios/' +
                              tensor.name, simple_value=ratio)
@@ -95,7 +103,7 @@ class UpdateRatioSessionHook(tf.train.SessionRunHook):
             self.before_weights = None
 
 
-def train(*tf_records):
+def train(*tf_records, work_dir):
     """
     Train on examples
     """
@@ -110,10 +118,10 @@ def train(*tf_records):
             n_repeats=1
         )
 
-    hooks = [DisplayStepsPerSecond(config.work_dir),
-             UpdateRatioSessionHook(output_dir=config.work_dir)]
+    hooks = [DisplayStepsPerSecond(config.job_dir),
+             UpdateRatioSessionHook(output_dir=config.job_dir)]
 
-    estimator = model.create_estimator()
+    estimator = model.create_estimator(work_dir=work_dir)
     batch_size = config.train_batch_size
     steps = config.steps_to_train
 
@@ -126,9 +134,58 @@ def train(*tf_records):
     try:
         estimator.train(input_fn=_get_input(),
                         hooks=hooks,
-                        steps=config.steps)  # TODO: nb of steps to train the model
+                        steps=steps)
     except ValueError as e:
         raise e
+
+
+def start(temp_dir):
+    # make sure the directories exist
+    tf.gfile.MakeDirs(config.job_dir)
+    tf.gfile.MakeDirs(temp_dir)
+
+    # If no checkpoints. Initialize a model with random weights and save them
+    if not utils.checkpoints_already_exist(config.job_dir):
+        model.NeuralNetwork()
+        model.save_weights()
+
+    # TODO: use tqdm
+    for i in range(config.n_epochs):
+        print("iteration %i", (i+1))
+
+        # At each epoch we play `config.n_games` number of games
+        for j in range(config.n_games):
+            print("Start self-play training %i" % (j+1))
+
+            # run self-play games using the weight in `config.job_dir`
+            # add save the selfplays as {timestamp_game}.tfrecord for each game
+            run_game(
+                load_file=utils.latest_checkpoint(config.job_dir),
+                selfplay_dir=config.selplay_dir,
+                holdout_dir=config.holdout_dir,
+                sgf_dir=config.sgf_dir,
+                holdout_pct=config.holdout_pct,
+            )
+
+        # Once all the tfrecords are generated and saved in `config.selfplay_dir`
+
+        # train the network and save the weights in a temporary directory
+        selfplay_records = glob(config.selfplay_dir)
+        train(selfplay_records, work_dir=temp_dir)
+
+        # play a self play between former weights (eval net) and new model (current_model)
+        previous_weights = utils.latest_checkpoint(config.job_dir)
+        new_weights = utils.latest_checkpoint(temp_dir)
+
+        percentage_wins_cur_model = evaluate(previous_weights, new_weights)
+
+        # Replace the old model by the new one if it is better (temp_dir -> job_dir)
+        if percentage_wins_cur_model > config.win_ratio:
+            tf.gfile.DeleteRecursively(config.job_dir)
+            model.export_model(config.job_dir, work_dir=temp_dir)
+
+        # delete weights in temp directory
+        tf.gfile.DeleteRecursively(temp_dir)
 
 
 def main(argv):
@@ -142,7 +199,6 @@ def main(argv):
     # *tf_records is a list
     train(*tf_records)
 
-    # TODO: define the export_path variable
     if config.export_path:
         model.export_model(config.export_path)
 
