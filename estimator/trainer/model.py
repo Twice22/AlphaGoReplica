@@ -1,9 +1,12 @@
 import numpy as np
-import trainer.game.symmetries as symmetries
+import os
+
+import symmetries
 import tensorflow as tf
-import trainer.game.config as config
+import config
 
 import functools
+
 
 @functools.lru_cache(maxsize=1)
 def get_vars():
@@ -13,13 +16,14 @@ def get_vars():
     d = {k: v for k, v in config.__dict__.items() if not (k.startswith('__') or k.startswith('_'))}
     return d
 
+
 def get_inputs():
     """
         Create the placeholders for the features and the labels
     """
     features = {"x": tf.placeholder(dtype=tf.float32,
-                                          shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
-                                          name='x')}
+                                    shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
+                                    name='x')}
 
     # +1 for the terminal state
     labels = {'pi': tf.placeholder(tf.float32, [None, config.n_rows * config.cols + 1]),
@@ -27,10 +31,13 @@ def get_inputs():
 
     return features, labels
 
-# TODO: Call it in task.py or train.py (to create)
-def create_estimator():
+
+def create_estimator(work_dir=None):
     """
     Create a custom estimator based on model_fn
+
+    Args:
+        work_dir (str): Path where to save the checkpoints, the model, ...
 
     Returns:
         Estimator
@@ -43,25 +50,29 @@ def create_estimator():
     estimator = tf.estimator.Estimator(model_fn=model_fn,
                                        params=get_vars(),
                                        config=run_config,
-                                       model_dir=config.job_dir) # TODO: differentiate job and model dir?
+                                       model_dir=config.job_dir if work_dir is None else work_dir)
 
     return estimator
 
 
 # see equation (1) of the paper page 2
 def compute_loss(pi, z, p, v):
-    cross_entropy = tf.losses.softmax_cross_entropy(onehot_labels=pi,
-                                                    logits=p)
+    # pi and p have size [batch_size, #positions] and tf.looses.softmax_cross_entropy
+    # returns a tensor of size [batch_size] then take the average to have the
+    # cross entropy value over the whole batch
+    cross_entropy = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=pi,
+                                                                   logits=p))
 
-    # TODO: reshape and add parameterlambda * tf.losses.mean_squared_error
-    mean_square = tf.losses.mean_squared_error(labels=z,
-                                               predictions=v)
+    # return a scalar
+    mean_square = config.mean_square_weight * tf.losses.mean_squared_error(labels=z,
+                                                                           predictions=v)
 
     regularization = tf.losses.get_regularization_loss()
 
     return cross_entropy, mean_square, regularization
 
 
+# features comes from input_fn (in train.py) that reads the tf_records
 def model_fn(features, labels, mode, params):
     """
     Create the model structure and compute the output
@@ -71,7 +82,7 @@ def model_fn(features, labels, mode, params):
             tensor representing the game: [config.n_rows, config.n_cols, config.history * 2 + 1]
         labels (dict): dictionary that maps the keys `pi`and `x` to their values
             `pi`: [batch_size, config.n_rows * config.n_cols + 1]
-            `z`: [batch_size]
+            `z`: [batch_size, 1]
         mode (tf.estimator.Modekeys): Tensorflow mode to use (TRAIN, EVALUATE, PREDICT)
             needed in part because batch Normalization is different during training and
             testing phase
@@ -97,11 +108,11 @@ def model_fn(features, labels, mode, params):
             }
     """
 
-    state_size = params['history'] * 2 + 1 # 17 by default for the game of Go
+    state_size = params['history'] * 2 + 1  # 17 by default for the game of Go
     n_rows = params['n_rows']
     n_cols = params['n_cols']
     n_residual_blocks = params['n_res_blocks']
-    c = params['l2_regularization'] # normalization cst: 1e-4 by default (p8 under Optimization)
+    c = params['l2_regularization']  # normalization cst: 1e-4 by default (p8 under Optimization)
     conv_width = params['conv_width']
     fc_width = params['fc_width']
     val_conv_width = params['val_conv_width']
@@ -109,7 +120,7 @@ def model_fn(features, labels, mode, params):
     lr_boundaries = params['learning_rates_scheduler']
     lr_values = params['learning_rates']
     momentum = params['momentum_rate']
-    summary_step = params['summary_step'] # Number of steps before we log summary scalars
+    summary_step = params['summary_step']  # Number of steps before we log summary scalars
 
     training = (mode == tf.estimator.ModeKeys.TRAIN)
     evaluate = (mode == tf.estimator.ModeKeys.EVALUATE)
@@ -124,14 +135,15 @@ def model_fn(features, labels, mode, params):
     reg = tf.contrib.layers.l2_regularizer(c)
 
     # Input Layer
+    # TODO: do we need to resize it?
     # reshape X to 4-D tensor [batch_size, width, height, state_size]
-    input_layer = tf.reshape(x, [-1, n_rows, n_cols, state_size])
+    # input_layer = tf.reshape(x, [-1, n_rows, n_cols, state_size])
 
     # See under `Neural network architecture` of the paper
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
         inputs=input_layer,
-        filter=conv_width, # 256 by default in the paper
+        filter=conv_width,  # 256 by default in the paper
         kernel_size=[3, 3],
         padding="same",
         strides=1,
@@ -177,7 +189,7 @@ def model_fn(features, labels, mode, params):
         # Convolution Layer #2
         res_conv2 = tf.layers.conv2d(
             inputs=res_relu1,
-            filter=conv_width, # 256 by default in the paper
+            filter=conv_width,  # 256 by default in the paper
             kernel_size=[3, 3],
             padding="same",
             strides=1,
@@ -198,11 +210,10 @@ def model_fn(features, labels, mode, params):
         # ReLu #2
         res_input_layer = tf.nn.relu(res_batch_norm2)
 
-
     ### Policy Head ###
     pol_conv = tf.layers.conv2d(
         inputs=res_input_layer,
-        filter=pol_conv_width, # 2 by default in the paper,
+        filter=pol_conv_width,  # 2 by default in the paper,
         kernel_size=[1, 1],
         padding="same",
         strides=1,
@@ -218,7 +229,8 @@ def model_fn(features, labels, mode, params):
 
     pol_relu = tf.nn.relu(pol_batch_norm)
 
-    pol_flatten_relu = tf.reshape(pol_relu, [-1, n_rows * n_cols * pol_conv_width]) # 2 filters by default in pol_conv so (* 2) here
+    # 2 filters by default in pol_conv so (* 2) here
+    pol_flatten_relu = tf.reshape(pol_relu, [-1, n_rows * n_cols * pol_conv_width])
 
     logits = tf.layers.dense(inputs=pol_flatten_relu,
                              units=n_rows * n_cols + 1,
@@ -229,7 +241,7 @@ def model_fn(features, labels, mode, params):
     ### Value Head ###
     val_conv = tf.layers.conv2d(
         inputs=res_input_layer,
-        filter=val_conv_width, # 1 by default in the paper
+        filter=val_conv_width,  # 1 by default in the paper
         kernel_size=[1, 1],
         padding="same",
         strides=1,
@@ -245,24 +257,29 @@ def model_fn(features, labels, mode, params):
 
     val_relu1 = tf.nn.relu(val_batch_norm)
 
-    val_flatten_relu = tf.reshape(val_relu1, [-1, val_conv_width * n_rows * n_cols]) # number of squares in the board
+    # number of squares in the board
+    val_flatten_relu = tf.reshape(val_relu1, [-1, val_conv_width * n_rows * n_cols])
 
     val_dense1 = tf.layers.dense(inputs=val_flatten_relu,
-                                 units=fc_width, # 256 by default in the paper
+                                 units=fc_width,  # 256 by default in the paper
                                  kernel_regularizer=reg)
 
     val_relu2 = tf.nn.relu(val_dense1)
 
     # TODO: need a reshape?
+    # return a tensor of shape [batch_size, 1]
     val_dense2 = tf.layers.dense(inputs=val_relu2,
                                  units=1,
                                  kernel_regularizer=reg
     )
 
-    v = tf.nn.tanh(val_dense2, name='value_head')
+    # need to flatten it to have shape [batch_size]
+    flatten_val_dense2 = tf.reshape(val_dense2, [-1])
+
+    v = tf.nn.tanh(flatten_val_dense2, name='value_head')
 
     # policy_output, value_output, logits = p, v, logits
-    # line 219
+    # line 235
 
     cross_entropy, mean_square, regularization = compute_loss(pi, z, p, v)
     loss = cross_entropy + mean_square + regularization  # line 232
@@ -276,9 +293,10 @@ def model_fn(features, labels, mode, params):
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
     # Compute evaluation metrics
-    # TODO: maybe need to check if p * tf.log(p) not too small and add reduce_mean?
-    pol_entropy = -tf.reduce_sum(p * tf.log(p))
+    # Compute the policy entropy for each batch and average it over the size of the batch
+    pol_entropy = -tf.reduce_mean(tf.reduce_sum(p * tf.log(p), axis=1))
 
+    # TODO: tf.reshape( , [1])  before tf.metrics.mean ?
     metrics = {
         'pol_cost': tf.metrics.mean(cross_entropy),
         'val_cost': tf.metrics.mean(mean_square),
@@ -303,14 +321,13 @@ def model_fn(features, labels, mode, params):
     
     if predict:
         predictions = {
-            'p': p,  # TODO: maybe need p[0]
-            'v': v  # TODO: maybe need v[0][0]
+            'p': p,
+            'v': v,
         }
 
         return tf.estimator.EstimatorSpec(
             mode,
             predictions=predictions)  # TODO: define export_outputs?
-
 
     # stochastic gradient decent with momentum=0.9
     # and learning rate annealing. See `Optimization`
@@ -334,9 +351,8 @@ def model_fn(features, labels, mode, params):
             train_op=train_op)  # TODO: define hooks?
 
 
-
-class NeuralNetwork():
-    def __init__(self, weights_file):
+class NeuralNetwork:
+    def __init__(self, weights_file=None):
         self.weights = weights_file
         self.features = None
         self.predictions = None
@@ -346,8 +362,7 @@ class NeuralNetwork():
         config.gpu_options.per_process_gpu_memory_fraction = 0.8
 
         self.sess = tf.Session(graph=tf.Graph(), config=config)
-        self.initialize_graph()
-
+        self.init_graph()
 
     def load_weights(self, weights_file):
         """
@@ -355,6 +370,10 @@ class NeuralNetwork():
             load the weights of the updated version of the player
         """
         tf.train.Saver().restore(self.sess, weights_file)
+
+    def save_weights(self, work_dir=None, filename="model.ckpt-0"):
+        tf.train.Saver().save(self.sess, os.path.join(config.job_dir if work_dir is None else work_dir,
+                                                      filename))
 
     def init_graph(self):
         with self.sess.graph.as_default():
@@ -390,14 +409,15 @@ class NeuralNetwork():
         return probs, values
 
 
-def export_model(model_path):
+def export_model(model_path, work_dir=None):
     """Take the latest checkpoint and copy it to model_path
 
     Args:
         model_path: The path to export the model
+        work_dir: The path that contains the weights of the model
     """
     estimator = tf.estimator.Estimator(model_fn,
-                                       model_dir=config.job_dir,
+                                       model_dir=config.job_dir if work_dir is None else work_dir,
                                        params=get_vars())
 
     latest_checkpoint = estimator.latest_checkpoint()
