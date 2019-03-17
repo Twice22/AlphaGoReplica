@@ -17,14 +17,15 @@ HISTORY = 8
 # with extra rows and columns on the margin of the board, so positions on the board
 # are not numbers in [0, board_size**2) as one would expect. For this Go env, we instead
 # use an action representation that does fall in this more natural range.
-
 def _pass_action(board_size):
     """ Return the pass action """
     return board_size ** 2
 
+
 def _resign_action(board_size):
     """ Return the resign action """
     return board_size ** 2 + 1
+
 
 def _coord_to_action(board, c):
     """ Converts Pachi coordinates to actions """
@@ -37,6 +38,7 @@ def _coord_to_action(board, c):
     i, j = board.coord_to_ij(c)
     return i * board.size + j
 
+
 def _action_to_coord(board, a):
     """ Converts actions to Pachi coordinates """
     if a == _pass_action(board.size):
@@ -46,6 +48,7 @@ def _action_to_coord(board, a):
         return pachi_py.RESIGN_COORD
 
     return board.ij_to_coord(a // board.size, a % board.size)
+
 
 def _format_state(history, player_color, board_size):
     """ Format the board to be used as the input to the NN.
@@ -64,6 +67,7 @@ def _format_state(history, player_color, board_size):
     final_state = np.concatenate((history, color_to_play), axis=-1)
     return final_state
 
+
 class GoGame():
     """ Go environment. Play against a fixed opponent """
 
@@ -76,8 +80,8 @@ class GoGame():
         self.board_size = board_size
 
         colormap = {
-            'black': pachi_py.BLACK, # pachi_py.BLACK = 1
-            'white': pachi_py.WHITE, # pachi_py.WHITE = 2
+            'black': pachi_py.BLACK,  # pachi_py.BLACK = 1
+            'white': pachi_py.WHITE,  # pachi_py.WHITE = 2
         }
         self.player_color = colormap[player_color]
         self.reset()
@@ -88,12 +92,11 @@ class GoGame():
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            if k =="board":
+            if k == "board":
                 setattr(result, k, self.board.clone())
             else:
                 setattr(result, k, deepcopy(v, memo))
         return result
-
 
     def play_action(self, action):
         """ If 2 player passes the game end (rule of Go),
@@ -116,6 +119,8 @@ class GoGame():
 
         self.done = self.board.is_terminal
         self.state = _format_state(self.history, self.player_color, self.board_size)
+
+        return self.state, self.done
 
     def _komi(self):
         """ Add komi (bonus point) to the second player
@@ -177,7 +182,7 @@ class GoGame():
         # switch player
         self.player_color = pachi_py.stone_other(self.player_color)
 
-    def get_winner(self):
+    def get_reward(self):
         """ Get the winner using Tromp-Taylor scoring """
 
         # Tromp-Taylor scoring https://github.com/openai/pachi-py/blob/master/pachi_py/pachi/board.c#L1556
@@ -194,6 +199,27 @@ class GoGame():
         reward = 1 if player_wins else -1 if (white_wins or black_wins) else 0
 
         return reward
+
+    def get_result_string(self):
+        """ Get the result as a SGF formatted string.
+            For example: "B+W" means Black wins by resign
+                         "B+3.5" means Black wins by 3.5 points
+        """
+        score = self.komi + self.board.official_score
+        players = {
+            True: "W",
+            False: "B"
+        }
+        winner = players[score > 0]
+
+        # TODO: handle TIES
+        if score == 0:
+            return winner + "+" + players[not(score > 0)]
+
+        return winner + "+" + abs(score)
+
+    def get_states(self):
+        return self.state.copy()
 
     def render(self):
         """ Render the board in the console """
