@@ -4,11 +4,11 @@ import time
 import tensorflow as tf
 import numpy as np
 
-import trainer.config as config
-import trainer.model as model
-import trainer.records as records
-import trainer.mcts as mcts
-import trainer.game.go as go
+import config
+import model
+import records
+import mcts
+import game.go as go
 
 
 def play(model):
@@ -30,7 +30,7 @@ def play(model):
     count = 0
 
     game = go.GoGame()
-    node = mcts.TreeNode()
+    node = mcts.Node()
 
     while True:
         # by default: first 30 moves of the game, the temperature is set to 1

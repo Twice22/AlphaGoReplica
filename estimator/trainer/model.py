@@ -26,7 +26,7 @@ def get_inputs():
                                     name='x')}
 
     # +1 for the terminal state
-    labels = {'pi': tf.placeholder(tf.float32, [None, config.n_rows * config.cols + 1]),
+    labels = {'pi': tf.placeholder(tf.float32, [None, config.n_rows * config.n_cols + 1]),
               'z': tf.placeholder(tf.float32, [None])}
 
     return features, labels
@@ -123,7 +123,7 @@ def model_fn(features, labels, mode, params):
     summary_step = params['summary_step']  # Number of steps before we log summary scalars
 
     training = (mode == tf.estimator.ModeKeys.TRAIN)
-    evaluate = (mode == tf.estimator.ModeKeys.EVALUATE)
+    evaluate = (mode == tf.estimator.ModeKeys.EVAL)
     predict = (mode == tf.estimator.ModeKeys.PREDICT)
 
     # features is our placeholder
@@ -142,8 +142,8 @@ def model_fn(features, labels, mode, params):
     # See under `Neural network architecture` of the paper
     # Convolutional Layer #1
     conv1 = tf.layers.conv2d(
-        inputs=input_layer,
-        filter=conv_width,  # 256 by default in the paper
+        inputs=x,
+        filters=conv_width,  # 256 by default in the paper
         kernel_size=[3, 3],
         padding="same",
         strides=1,
@@ -168,7 +168,7 @@ def model_fn(features, labels, mode, params):
         # Convolution Layer #1
         res_conv1 = tf.layers.conv2d(
             inputs=res_input_layer,
-            filter=conv_width, # 256 by default in the paper
+            filters=conv_width,  # 256 by default in the paper
             kernel_size=[3, 3],
             padding="same",
             strides=1,
@@ -177,7 +177,7 @@ def model_fn(features, labels, mode, params):
         )
 
         # Batch normalization #1
-        res_batch_norm1 = tf.layer.batch_normalization(
+        res_batch_norm1 = tf.layers.batch_normalization(
             epsilon=1e-5,
             inputs=res_conv1,
             training=training
@@ -189,7 +189,7 @@ def model_fn(features, labels, mode, params):
         # Convolution Layer #2
         res_conv2 = tf.layers.conv2d(
             inputs=res_relu1,
-            filter=conv_width,  # 256 by default in the paper
+            filters=conv_width,  # 256 by default in the paper
             kernel_size=[3, 3],
             padding="same",
             strides=1,
@@ -198,7 +198,7 @@ def model_fn(features, labels, mode, params):
         )
 
         # Batch normalization #2
-        res_batch_norm2 = tf.layer.batch_normalization(
+        res_batch_norm2 = tf.layers.batch_normalization(
             epsilon=1e-5,
             inputs=res_conv2,
             training=training
@@ -213,7 +213,7 @@ def model_fn(features, labels, mode, params):
     ### Policy Head ###
     pol_conv = tf.layers.conv2d(
         inputs=res_input_layer,
-        filter=pol_conv_width,  # 2 by default in the paper,
+        filters=pol_conv_width,  # 2 by default in the paper,
         kernel_size=[1, 1],
         padding="same",
         strides=1,
@@ -221,7 +221,7 @@ def model_fn(features, labels, mode, params):
         kernel_regularizer=reg
     )
 
-    pol_batch_norm = tf.layer.batch_normalization(
+    pol_batch_norm = tf.layers.batch_normalization(
         epsilon=1e-5,
         inputs=pol_conv,
         training=training
@@ -241,7 +241,7 @@ def model_fn(features, labels, mode, params):
     ### Value Head ###
     val_conv = tf.layers.conv2d(
         inputs=res_input_layer,
-        filter=val_conv_width,  # 1 by default in the paper
+        filters=val_conv_width,  # 1 by default in the paper
         kernel_size=[1, 1],
         padding="same",
         strides=1,
@@ -314,7 +314,7 @@ def model_fn(features, labels, mode, params):
         global_step=global_step
     )
     for name, op in metrics.items():
-        tf.summary.scalar(name, op[1], step=global_step)
+        tf.contrib.summary.scalar(name, op[1], step=global_step)
 
     if evaluate:
         return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=metrics)
@@ -372,13 +372,14 @@ class NeuralNetwork:
         tf.train.Saver().restore(self.sess, weights_file)
 
     def save_weights(self, work_dir=None, filename="model.ckpt-0"):
-        tf.train.Saver().save(self.sess, os.path.join(config.job_dir if work_dir is None else work_dir,
+        with self.sess:
+            tf.train.Saver().save(self.sess, os.path.join(config.job_dir if work_dir is None else work_dir,
                                                       filename))
 
     def init_graph(self):
         with self.sess.graph.as_default():
             features, labels = get_inputs()
-            estimator_spec = model_fn(features, labels, tf.estimator.Modekeys.PREDICT, params=get_vars())
+            estimator_spec = model_fn(features, labels, tf.estimator.ModeKeys.PREDICT, params=get_vars())
 
             self.features = features
             self.predictions = estimator_spec.predictions
@@ -398,7 +399,7 @@ class NeuralNetwork:
         if config.use_random_symmetry:
             transformations, features = symmetries.batch_symmetries(features)
 
-        outputs = self.sess.run(self.predictions, feed_dict={self.features: features})
+        outputs = self.sess.run(self.predictions, feed_dict={self.features['x']: features})
         probs, values = outputs['p'], outputs['v']
 
         # need to retrieve the probabilities 

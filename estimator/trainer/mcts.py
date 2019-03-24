@@ -28,12 +28,18 @@ def dirichlet_noise(P_s):
 # cannot be part of Node class because we need \sum_b N(s, b) i.e 
 # how many times we visited state s
 # see Select (Fig.2a) p.8 of the paper 
-def select_action(nodes):
+def select_action(nodes, game):
     """ nodes should have Q(s, a), P(s,a), N(s, a) for all a  """
     PUCT_sa = np.zeros(nodes.shape[0])
     N_s = sum(nodes[:, 2])
     for i, (Q_sa, P_sa, N_sa) in enumerate(nodes):
         PUCT_sa[i] = Q_sa + config.c_puct * P_sa * (N_s ** 0.5) / (1 + N_sa)
+
+    # negate illegal_actions to avoid choosing them
+    # get illegal actions: all actions - available actions
+    legal_actions = game.get_legal_actions()
+    illegal_actions = np.setdiff1d(np.arange(game.board_size ** 2 + 1), np.array(legal_actions))
+    PUCT_sa[illegal_actions] = -100
 
     # if 2 or more actions have the same confidence bound return one of them at random
     best_actions = np.where(PUCT_sa == np.max(PUCT_sa))[0]
@@ -100,7 +106,7 @@ class MCTS:
     # select the move to expand according to how many times we visited all other nodes
     def select_move(self, temp):
         rev_temp = 1 / temp
-        pi_as = [(node.N_sa ** rev_temp, node.action) for node in self.root.childrens]
+        pi_as = [(node.N_sa ** rev_temp, node.action) for node in self.root.children]
         probs = [v for v, a in pi_as]
         probs /= np.sum(probs)
         
@@ -133,13 +139,15 @@ class MCTS:
         # do `n_mcts_sim` of Monte Carlo
         for i in range(config.n_mcts_sim):
             node = self.root
+            done = False
             game = deepcopy(game)  # use override deepcopy version from the goGame class
 
+            # TODO: debug here
             # loop till node have children (till game not finished)
             while not node.is_leaf() and not done:
-                Q_P_N = np.array([[child_node.Q_sa, child_node.P_sa, child_node.N_sa] for child_node in node.childrens])
-                best_action = select_action(Q_P_N)
-                node = node.childrens[best_action]
+                Q_P_N = np.array([[child_node.Q_sa, child_node.P_sa, child_node.N_sa] for child_node in node.children])
+                best_action = select_action(Q_P_N, game)
+                node = node.children[best_action]
 
                 # use that action in the game
                 state, done = game.play_action(node.action)
@@ -148,6 +156,7 @@ class MCTS:
 
             # get probabilities P_s and values from the network for this state
             P_s, v = self.net.run(game)
+            P_s, v = P_s[0], v[0]
 
             # Add Dirichlet noise to the root node
             # because we initialize the node with `node = mcts.TreeNode()`
@@ -196,7 +205,7 @@ class MCTS:
 
         # the child node corresponding to the played
         # action becomes the new root node
-        for child in self.root.childrens:
+        for child in self.root.children:
             if child.action == action:
                 self.root = child
                 break

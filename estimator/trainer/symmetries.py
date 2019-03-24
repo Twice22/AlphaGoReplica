@@ -1,4 +1,5 @@
 import numpy as np
+import config
 import functools
 
 # see examples: https://en.wikipedia.org/wiki/Dihedral_group

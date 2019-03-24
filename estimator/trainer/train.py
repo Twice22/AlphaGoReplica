@@ -146,22 +146,22 @@ def start(temp_dir):
 
     # If no checkpoints. Initialize a model with random weights and save them
     if not utils.checkpoints_already_exist(config.job_dir):
-        model.NeuralNetwork()
-        model.save_weights()
+        network = model.NeuralNetwork()
+        network.save_weights()
 
     # TODO: use tqdm
     for i in range(config.n_epochs):
-        print("iteration %i", (i+1))
+        print("epoch %i" % (i+1))
 
         # At each epoch we play `config.n_games` number of games
         for j in range(config.n_games):
-            print("Start self-play training %i" % (j+1))
+            print("\tStart self-play training %i" % (j+1))
 
             # run self-play games using the weight in `config.job_dir`
             # add save the selfplays as {timestamp_game}.tfrecord for each game
             run_game(
                 load_file=utils.latest_checkpoint(config.job_dir),
-                selfplay_dir=config.selplay_dir,
+                selfplay_dir=config.selfplay_dir,
                 holdout_dir=config.holdout_dir,
                 sgf_dir=config.sgf_dir,
                 holdout_pct=config.holdout_pct,
@@ -170,7 +170,7 @@ def start(temp_dir):
         # Once all the tfrecords are generated and saved in `config.selfplay_dir`
 
         # train the network and save the weights in a temporary directory
-        selfplay_records = glob(config.selfplay_dir)
+        selfplay_records = glob(os.path.join(config.selfplay_dir, "*.tfrecord"))
         train(selfplay_records, work_dir=temp_dir)
 
         # play a self play between former weights (eval net) and new model (current_model)

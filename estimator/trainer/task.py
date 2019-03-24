@@ -1,8 +1,8 @@
 import os
 import argparse
-
 import tensorflow as tf
 
+import train
 from utils import create_configuration
 
 
@@ -231,7 +231,8 @@ def initialize_hyper_params(arg_parser):
     args_parser.add_argument(
         '--job-dir',
         help="GCS location to write the checkpoints, logs and the export models",
-        required=True
+        # required=True
+        default="model"
     )
     args_parser.add_argument(
         '--keep-checkpoint-max',
@@ -280,6 +281,7 @@ def initialize_hyper_params(arg_parser):
     ###########################################
     #             Logging arguments           #
     ###########################################
+    # TODO: add logging everywhere in the program
     args_parser.add_argument(
         '--verbosity',
         choices=[
@@ -295,21 +297,9 @@ def initialize_hyper_params(arg_parser):
     return args_parser.parse_args()
 
 
-def run_experiment(run_config):
-     """ Train, evaluate, and export the model
-        using tf.estimator.train_and_evaluate API
-    Args:
-        run_config (tf.estimator.RunConfig): Configuration file
-        that specifies the parameters for the general model such
-        as where to save the checkpoints, how many maximum checkpoints
-        to save, ...
-
-     """
-     pass # not implemented yet
-
-
-# python task.py --job_dir "model"
+# python task.py --job-dir "model"
 if __name__ == '__main__':
     args_parser = argparse.ArgumentParser()
     HYPER_PARAMS = initialize_hyper_params(args_parser)
     create_configuration(HYPER_PARAMS.__dict__)
+    train.start("temp")
