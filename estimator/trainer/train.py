@@ -5,6 +5,7 @@ Usage:
 
 import logging
 
+import os
 import numpy as np
 import tensorflow as tf
 import model
@@ -132,7 +133,7 @@ def train(*tf_records, work_dir):
     # input_fn: provides input data as mini batches
     # hooks: list of subclass of tf.train.SessionRunHook
     try:
-        estimator.train(input_fn=_get_input(),
+        estimator.train(input_fn=_get_input,
                         hooks=hooks,
                         steps=steps)
     except ValueError as e:
@@ -170,7 +171,8 @@ def start(temp_dir):
         # Once all the tfrecords are generated and saved in `config.selfplay_dir`
 
         # train the network and save the weights in a temporary directory
-        selfplay_records = glob(os.path.join(config.selfplay_dir, "*.tfrecord"))
+        full_selfplay_dir = os.path.join(config.main_data_dir, config.selfplay_dir)
+        selfplay_records = glob(os.path.join(full_selfplay_dir, "*.tfrecord"))
         train(selfplay_records, work_dir=temp_dir)
 
         # play a self play between former weights (eval net) and new model (current_model)

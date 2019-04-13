@@ -216,7 +216,7 @@ class GoGame():
         if score == 0:
             return winner + "+" + players[not(score > 0)]
 
-        return winner + "+" + abs(score)
+        return winner + "+" + str(abs(score))
 
     def get_states(self):
         return self.state.copy()

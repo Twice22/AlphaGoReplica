@@ -34,11 +34,10 @@ def play(model):
 
     while True:
         # by default: first 30 moves of the game, the temperature is set to 1
-        # TODO: debug node? Is node update at each iteration?
         if count < config.temperature_scheduler:
-            probs, action = player.search(game, node, config.temperature[0])
+            probs, action, best_child = player.search(game, node, config.temperature[0])
         else:
-            probs, action = player.search(game, node, config.temperature[1])
+            probs, action, best_child = player.search(game, node, config.temperature[1])
 
         # self.root.position.n represents the # of moves played so far
         # self.search_pi is update each time play_move is used on player: it adds
@@ -67,8 +66,9 @@ def play(model):
             player.set_result_string(game.get_result_string())
             break
 
-        # The child node becomes the new root node (already
-        # handled in mcts script)
+        # The child node becomes the new root node
+        best_child.parent = None
+        node = best_child
 
     return player
 
@@ -114,16 +114,16 @@ def run_game(load_file, selfplay_dir=None, holdout_dir=None,
     if selfplay_dir is not None:
         # Hold out 5% of all the games for validation
         if np.random.random() < holdout_pct:
-            file_name = os.path.join(holdout_dir,
+            file_name = os.path.join(full_holdout_dir,
                                      "%s.tfrecord" % output_name)
         else:
-            file_name = os.path.join(selfplay_dir,
+            file_name = os.path.join(full_selfplay_dir,
                                      "%s.tfrecord" % output_name)
 
         # save the data into tfrecords. One folder contains
         # data to validate the performance of the model and
         # the other contains the selfplay data
-        records.write_tf_examples(file_name, tf_examples)
+        records.write_records(file_name, tf_examples)
 
 
 def main(unused_args):

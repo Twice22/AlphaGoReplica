@@ -65,7 +65,7 @@ def initialize_hyper_params(arg_parser):
         '--n-games',
         help="Number of self-play games played at each iteration to generate data",
         type=int,
-        default=400  # 25000 in the paper
+        default=2  # 25000 in the paper
     )
 
     ###########################################
@@ -88,7 +88,7 @@ def initialize_hyper_params(arg_parser):
         '--temperature',
         help="The different temperature values",
         nargs='+',
-        default=[1, 0.001],  # 1 and -> 0 in the paper
+        default=[1, 0.1],  # 1 and -> 0 in the paper
         type=float
     )
     args_parser.add_argument(
@@ -250,19 +250,19 @@ def initialize_hyper_params(arg_parser):
         '--main-data-dir',
         help='parent directory of all the data directories',
         type=str,
-        default=None
+        default="data"
     )
     args_parser.add_argument(
         '--selfplay-dir',
         help='Path where the data of the seflplay games are saved',
         type=str,
-        default=None
+        default="selfplay_data"
     )
     args_parser.add_argument(
         '--holdout-dir',
         help='Path where the data of the heldout games are saved',
         type=str,
-        default=None
+        default="heldout_data"
     )
     args_parser.add_argument(
         '--holdout-pct',

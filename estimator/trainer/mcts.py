@@ -28,36 +28,27 @@ def dirichlet_noise(P_s):
 # cannot be part of Node class because we need \sum_b N(s, b) i.e 
 # how many times we visited state s
 # see Select (Fig.2a) p.8 of the paper 
-def select_action(nodes, game):
-    """ nodes should have Q(s, a), P(s,a), N(s, a) for all a  """
-    PUCT_sa = np.zeros(nodes.shape[0])
+def select_action(nodes):
+    """ nodes should have Q(s, a), P(s, a), N(s, a) action_id for all a  """
+    PUCT_sa = np.zeros(len(nodes[:, 0]))
     N_s = sum(nodes[:, 2])
     for i, (Q_sa, P_sa, N_sa) in enumerate(nodes):
         PUCT_sa[i] = Q_sa + config.c_puct * P_sa * (N_s ** 0.5) / (1 + N_sa)
 
-    # negate illegal_actions to avoid choosing them
-    # get illegal actions: all actions - available actions
-    legal_actions = game.get_legal_actions()
-    illegal_actions = np.setdiff1d(np.arange(game.board_size ** 2 + 1), np.array(legal_actions))
-    PUCT_sa[illegal_actions] = -100
-
     # if 2 or more actions have the same confidence bound return one of them at random
-    best_actions = np.where(PUCT_sa == np.max(PUCT_sa))[0]
-    return np.random.choice(best_actions)
+    best_idx = np.where(PUCT_sa == np.max(PUCT_sa))[0]
+    return np.random.choice(best_idx)
 
 
 class Node:
     def __init__(self, parent=None, prob=0, action=None):
-        self.parent = parent
-        self.prob = prob
-        self.action = action
-
         # initialization (see 'Expand and evaluate' p.8 of the paper)
         self.Q_sa = 0  # mean value of the state, action pair (s, a)
         self.N_sa = 0  # number of times the pair (s,a) as been visited
         self.W_sa = 0  # total action value
         self.P_sa = prob  # prior probability of selecting that edge: P(a|s)
-
+        self.parent = parent
+        self.action = action
         self.children = []  # list of Node
 
     def is_leaf(self):
@@ -81,12 +72,14 @@ class Node:
             P_s: probability of selecting each action
             Populate the children variable with action whose probability is non-zero
         """
-        self.children = [Node(self, prob, idx) for idx, prob in enumerate(P_s) if prob > 0]
+        self.children = [Node(self, prob, action) for action, prob in enumerate(P_s) if prob > 0]
 
 
 class MCTS:
     def __init__(self, net):
         self.net = net
+        self.root = None
+        self.game = None
 
         # records the probabilities at each step
         self.probs_history = []
@@ -106,14 +99,18 @@ class MCTS:
     # select the move to expand according to how many times we visited all other nodes
     def select_move(self, temp):
         rev_temp = 1 / temp
-        pi_as = [(node.N_sa ** rev_temp, node.action) for node in self.root.children]
-        probs = [v for v, a in pi_as]
+        probs = [node.N_sa ** rev_temp for node in self.root.children]
         probs /= np.sum(probs)
-        
-        idx = np.random.choice(len(probs), p=probs)
-        action = pi_as[idx][1]
 
-        return np.asarray(probs), np.asarray(action)
+        # return idx of self.root.children
+        idx = np.random.choice(len(probs), p=probs)
+
+        # TODO: speed up this
+        # ensure to return a vector of size (n_rows * n_cols + 1)
+        p = np.zeros(config.n_rows * config.n_cols + 1)
+        p[np.array([node.action for node in self.root.children])] = probs
+
+        return p, idx
 
     def set_result(self, val):
         self.result = val
@@ -135,19 +132,20 @@ class MCTS:
 
     def search(self, game, node, temp):
         self.root = node
+        self.game = game
 
         # do `n_mcts_sim` of Monte Carlo
         for i in range(config.n_mcts_sim):
             node = self.root
             done = False
-            game = deepcopy(game)  # use override deepcopy version from the goGame class
+            game = deepcopy(self.game)  # use override deepcopy version from the goGame class
 
             # TODO: debug here
             # loop till node have children (till game not finished)
             while not node.is_leaf() and not done:
                 Q_P_N = np.array([[child_node.Q_sa, child_node.P_sa, child_node.N_sa] for child_node in node.children])
-                best_action = select_action(Q_P_N, game)
-                node = node.children[best_action]
+                best_idx = select_action(Q_P_N)
+                node = node.children[best_idx]
 
                 # use that action in the game
                 state, done = game.play_action(node.action)
@@ -170,10 +168,12 @@ class MCTS:
             # get illegal actions: all actions - available actions
             illegal_actions = np.setdiff1d(np.arange(game.board_size ** 2 + 1), np.array(legal_actions))
 
-            # re-normalize the P_s vector P_s = [P(s, a1), P(s, a2), ..., P(s, a2)]
+            # re-normalize the P_s vector P_s = [P(s, a1), P(s, a2), ..., P(s, aN)]
             # with P(s, ai) scalar
             P_s[illegal_actions] = 0
-            P_s /= np.sum(P_s)
+            sum_P = np.sum(P_s)
+            if np.sum(P_s) > 0:
+                P_s /= sum_P
 
             # add children of the new node we are in if possible
             node.expand_nodes(P_s)
@@ -191,7 +191,8 @@ class MCTS:
         # see Play (Fig. 2d) p.8 of the paper
         # AlphaGo Zero selects a move a to play in the root position
         # proportional to its exponentiated visit count
-        probs, action = self.select_move(temp)
+        probs, idx = self.select_move(temp)
+        action = self.root.children[idx].action
 
         # add probability vector pi to probs_history
         # each time we chose a move from using the mcts search
@@ -203,15 +204,10 @@ class MCTS:
         # record the action at each step
         self.actions_history.append(action)
 
-        # the child node corresponding to the played
-        # action becomes the new root node
-        for child in self.root.children:
-            if child.action == action:
-                self.root = child
-                break
 
         # probs = vector of probs of size [n_rows * n_cols + 1, ]
         # action = scalar in range [1, n_rows * n_cols + 1]
-        return probs, action
+        # self.root.children[idx] = new root node
+        return probs, action, self.root.children[idx]
 
 

@@ -26,11 +26,11 @@ def create_example(x, pi, v):
             by default for the Go game n_stacks = 17
         pi (np.array): label 1 representing the policy
             of dimension [n_rows * n_cols + 1] of float32
-        v (float): label 2 representing the value
+        v (float): label 2 representing the value (winner)
     """
     features = {
-        'x': _bytes_feature(x.toString()),
-        'pi': _bytes_feature(pi.toString()),
+        'x': _bytes_feature(x.tostring()),
+        'pi': _bytes_feature(pi.tostring()),
         'v': _float_feature(v)
     }
 
@@ -46,7 +46,10 @@ def write_records(filename, examples):
         examples (tf.train.Example): example protocol buffer
             to write in the file named `filename`
     """
-    writer = tf.python_io.TFRecordWriter(filename)
+    writer = tf.python_io.TFRecordWriter(
+        filename,
+        options=tf.python_io.TFRecordOptions(
+            tf.python_io.TFRecordCompressionType.ZLIB))
     for example in examples:
         writer.write(example.SerializeToString())
 
@@ -93,7 +96,7 @@ def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_
     # https://www.tensorflow.org/api_docs/python/tf/data/experimental/parallel_interleave
     dataset = record_list.apply(tf.data.experimental.parallel_interleave(lambda x:
                                      tf.data.TFRecordDataset(
-                                         x, compression_type='GZIP'),
+                                         x, compression_type='ZLIB'),  # same compression used during writing
                                      cycle_length=64, sloppy=True))
 
     if buffer_size:
@@ -123,7 +126,7 @@ def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_
         x = tf.reshape(x, [batch_size,
                            config.n_rows,
                            config.n_cols,
-                           (config.history + 1) * 2 + 1])
+                           config.history * 2 + 1])
         x = tf.cast(x, tf.float32)  # need float32 to perform calculations in the Neural network
 
         # convert pi from a scalar string tensor to a float32
@@ -133,7 +136,8 @@ def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_
 
         # d['v'] is already a float32 we just need to reshape it
         # to have [batch_size] dimension
-        v = tf.reshape(d['v'], [batch_size]) # TODO: or set_shape?
+        v = d['v']
+        v.set_shape([batch_size])
 
         return x, {'pi': pi, 'v': v}
 
@@ -160,14 +164,27 @@ def _apply_transformations(input_x, output_dict):
         output_dict (dict): same as output_dict beside output_dict["pi"] that is changed according to
             the transformations underwent by the input state `input_x`
     """
-    transformations, transformed_input_x = symmetries.batch_symmetries(input_x)
+    def transform_py_function(x, pi):
+        transformations, transformed_input_x = symmetries.batch_symmetries(x)
+        transformed_pi = [symmetries.transform_pi(p, transformation) for p, transformation in
+         zip(pi, transformations)]
+        return transformed_input_x, transformed_pi
 
     # need to transform the policy `pi` to fit the transformed_input_x
-    output_dict["pi"] = [symmetries.transform_pi(pi, transformation) for pi, transformation in
-                         zip(output_dict["pi"], transformations)]
+    pi_tensor = output_dict['pi']
+    transformed_x_tensor, transformed_pi_tensor = tuple(tf.py_func(  # TODO: use tf1.13 and tf.py_function
+        transform_py_function,
+        [input_x, pi_tensor],
+        [input_x.dtype, pi_tensor.dtype]
+    ))
 
-    # TODO: need tf.py_func?
-    return transformed_input_x, output_dict
+    # need to set the shape of the tensor
+    transformed_x_tensor.set_shape(transformed_x_tensor.get_shape())
+    transformed_pi_tensor.set_shape(transformed_pi_tensor.get_shape())
+
+    output_dict["pi"] = transformed_pi_tensor
+
+    return transformed_x_tensor, output_dict
 
 
 def generate_input(batch_size, records, shuffle_records=True, buffer_size=1000,
@@ -181,8 +198,9 @@ def generate_input(batch_size, records, shuffle_records=True, buffer_size=1000,
         n_repeats
     )
 
-    if enable_transformations:
-        dataset = dataset.map(_apply_transformations)
+    # TODO: re-enable this after debugging
+    # if enable_transformations:
+    #     dataset = dataset.map(_apply_transformations)
 
     iterator = dataset.make_one_shot_iterator()
     return iterator.get_next()

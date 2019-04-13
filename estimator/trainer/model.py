@@ -21,13 +21,14 @@ def get_inputs():
     """
         Create the placeholders for the features and the labels
     """
-    features = {"x": tf.placeholder(dtype=tf.float32,
-                                    shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
-                                    name='x')}
+    features = tf.placeholder(
+        dtype=tf.float32,
+        shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
+        name='x')
 
     # +1 for the terminal state
     labels = {'pi': tf.placeholder(tf.float32, [None, config.n_rows * config.n_cols + 1]),
-              'z': tf.placeholder(tf.float32, [None])}
+              'v': tf.placeholder(tf.float32, [None])}
 
     return features, labels
 
@@ -127,17 +128,15 @@ def model_fn(features, labels, mode, params):
     predict = (mode == tf.estimator.ModeKeys.PREDICT)
 
     # features is our placeholder
-    z = labels["z"]
+    z = labels["v"]
     pi = labels["pi"]
-    x = features["x"]
+    x = features
 
     # Add regularizer
     reg = tf.contrib.layers.l2_regularizer(c)
 
-    # Input Layer
-    # TODO: do we need to resize it?
     # reshape X to 4-D tensor [batch_size, width, height, state_size]
-    # input_layer = tf.reshape(x, [-1, n_rows, n_cols, state_size])
+    x = tf.reshape(x, [-1, n_rows, n_cols, state_size])
 
     # See under `Neural network architecture` of the paper
     # Convolutional Layer #1
@@ -230,6 +229,7 @@ def model_fn(features, labels, mode, params):
     pol_relu = tf.nn.relu(pol_batch_norm)
 
     # 2 filters by default in pol_conv so (* 2) here
+    # TODO: debug here
     pol_flatten_relu = tf.reshape(pol_relu, [-1, n_rows * n_cols * pol_conv_width])
 
     logits = tf.layers.dense(inputs=pol_flatten_relu,
@@ -390,6 +390,7 @@ class NeuralNetwork:
             else:
                 self.sess.run(tf.global_variables_initializer())
 
+    # TODO: adapt to be able to use a batch of game (or batch of state)
     # inference
     def run(self, game):
         # retrieve the [n_rows, n_cols, 17] features (17 is by default)
@@ -399,7 +400,7 @@ class NeuralNetwork:
         if config.use_random_symmetry:
             transformations, features = symmetries.batch_symmetries(features)
 
-        outputs = self.sess.run(self.predictions, feed_dict={self.features['x']: features})
+        outputs = self.sess.run(self.predictions, feed_dict={self.features: features})
         probs, values = outputs['p'], outputs['v']
 
         # need to retrieve the probabilities 
