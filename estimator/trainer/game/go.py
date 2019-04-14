@@ -144,7 +144,7 @@ class GoGame():
             page 8 (the last layer is added in _format_state)
         """
         self.komi = self._komi()
-        self.board = pachi_py.CreateBoard(self.board_size) # object with method
+        self.board = pachi_py.CreateBoard(self.board_size)  # object with method
         self.done = self.board.is_terminal
 
         self.history = np.zeros((self.board_size, self.board_size, HISTORY * 2), dtype=np.int8)

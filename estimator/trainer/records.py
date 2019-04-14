@@ -101,7 +101,11 @@ def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_
 
     if buffer_size:
         dataset = dataset.shuffle(buffer_size=buffer_size)
-    dataset = dataset.repeat(n_repeats).batch(batch_size)
+
+    # ensure to have dataset whose batch_size = train_batch_size (drop_remainder=True)
+    # if we play N games and if each game have more than batch_size actions
+    # then only the end of the last game won't be use to train the network
+    dataset = dataset.repeat(n_repeats).batch(batch_size, drop_remainder=True)
 
     # see example at the end of
     # https://www.tensorflow.org/guide/datasets#consuming_numpy_arrays
@@ -221,6 +225,6 @@ def make_selfplay_dataset(data_extracts):
 # see step 3: https://cloud.google.com/blog/big-data/2018/02/easy-distributed-training-with-tensorflow-using-tfestimatortrain-and-evaluate-on-cloud-ml-engine
 def serving_input_receiver_fn():
     feature_tensor = {"x": tf.placeholder(dtype=tf.float32,
-                                          shape=[None, config.n_rows, config.n_cols, (config.history + 1) * 2 + 1],
+                                          shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
                                           name='x')}
     return tf.estimator.export.ServingInputReceiver(feature_tensor, feature_tensor)

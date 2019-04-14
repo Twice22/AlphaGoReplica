@@ -121,7 +121,7 @@ class MCTS:
     def extract_data(self):
         assert len(self.probs_history) == len(self.states_history)
         for state, pi in zip(self.states_history, self.probs_history):
-            yield state, pi, self.result
+            yield state.astype(np.int8), pi.astype(np.float32), self.result
 
     def to_sgf(self):
         assert self.result_string is not None
@@ -140,7 +140,6 @@ class MCTS:
             done = False
             game = deepcopy(self.game)  # use override deepcopy version from the goGame class
 
-            # TODO: debug here
             # loop till node have children (till game not finished)
             while not node.is_leaf() and not done:
                 Q_P_N = np.array([[child_node.Q_sa, child_node.P_sa, child_node.N_sa] for child_node in node.children])

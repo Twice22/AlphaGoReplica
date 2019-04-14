@@ -134,7 +134,7 @@ def train(*tf_records, work_dir):
     # hooks: list of subclass of tf.train.SessionRunHook
     try:
         estimator.train(input_fn=_get_input,
-                        hooks=hooks,
+                        # hooks=hooks,  # TODO: DEBUG hook (problem with hook)
                         steps=steps)
     except ValueError as e:
         raise e
@@ -161,7 +161,7 @@ def start(temp_dir):
             # run self-play games using the weight in `config.job_dir`
             # add save the selfplays as {timestamp_game}.tfrecord for each game
             run_game(
-                load_file=utils.latest_checkpoint(config.job_dir),
+                load_file=utils.latest_checkpoint(config.job_dir),  # TODO: DEBUG here
                 selfplay_dir=config.selfplay_dir,
                 holdout_dir=config.holdout_dir,
                 sgf_dir=config.sgf_dir,
@@ -184,10 +184,12 @@ def start(temp_dir):
         # Replace the old model by the new one if it is better (temp_dir -> job_dir)
         if percentage_wins_cur_model > config.win_ratio:
             tf.gfile.DeleteRecursively(config.job_dir)
+            tf.gfile.MakeDirs(config.job_dir)
             model.export_model(config.job_dir, work_dir=temp_dir)
 
         # delete weights in temp directory
         tf.gfile.DeleteRecursively(temp_dir)
+        tf.gfile.MakeDirs(temp_dir)
 
 
 def main(argv):

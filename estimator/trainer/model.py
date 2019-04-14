@@ -136,7 +136,7 @@ def model_fn(features, labels, mode, params):
     reg = tf.contrib.layers.l2_regularizer(c)
 
     # reshape X to 4-D tensor [batch_size, width, height, state_size]
-    x = tf.reshape(x, [-1, n_rows, n_cols, state_size])
+    # x = tf.reshape(x, [-1, n_rows, n_cols, state_size])
 
     # See under `Neural network architecture` of the paper
     # Convolutional Layer #1
@@ -223,13 +223,14 @@ def model_fn(features, labels, mode, params):
     pol_batch_norm = tf.layers.batch_normalization(
         epsilon=1e-5,
         inputs=pol_conv,
-        training=training
+        training=training,
+        center=False,
+        scale=False
     )
 
     pol_relu = tf.nn.relu(pol_batch_norm)
 
     # 2 filters by default in pol_conv so (* 2) here
-    # TODO: debug here
     pol_flatten_relu = tf.reshape(pol_relu, [-1, n_rows * n_cols * pol_conv_width])
 
     logits = tf.layers.dense(inputs=pol_flatten_relu,
@@ -252,7 +253,9 @@ def model_fn(features, labels, mode, params):
     val_batch_norm = tf.layers.batch_normalization(
         epsilon=1e-5,
         inputs=val_conv,
-        training=training
+        training=training,
+        center=False,
+        scale=False
     )
 
     val_relu1 = tf.nn.relu(val_batch_norm)
@@ -266,20 +269,15 @@ def model_fn(features, labels, mode, params):
 
     val_relu2 = tf.nn.relu(val_dense1)
 
-    # TODO: need a reshape?
     # return a tensor of shape [batch_size, 1]
     val_dense2 = tf.layers.dense(inputs=val_relu2,
                                  units=1,
-                                 kernel_regularizer=reg
-    )
+                                 kernel_regularizer=reg)
 
     # need to flatten it to have shape [batch_size]
     flatten_val_dense2 = tf.reshape(val_dense2, [-1])
 
     v = tf.nn.tanh(flatten_val_dense2, name='value_head')
-
-    # policy_output, value_output, logits = p, v, logits
-    # line 235
 
     cross_entropy, mean_square, regularization = compute_loss(pi, z, p, v)
     loss = cross_entropy + mean_square + regularization  # line 232
@@ -372,7 +370,7 @@ class NeuralNetwork:
         tf.train.Saver().restore(self.sess, weights_file)
 
     def save_weights(self, work_dir=None, filename="model.ckpt-0"):
-        with self.sess:
+        with self.sess.graph.as_default():
             tf.train.Saver().save(self.sess, os.path.join(config.job_dir if work_dir is None else work_dir,
                                                       filename))
 
@@ -425,7 +423,8 @@ def export_model(model_path, work_dir=None):
     latest_checkpoint = estimator.latest_checkpoint()
     all_checkpoint_files = tf.gfile.Glob(latest_checkpoint + '*')
     for filename in all_checkpoint_files:
-        suffix = filename.partition(latest_checkpoint)[2]
-        destination_path = model_path + suffix
+        ext = filename.partition(latest_checkpoint)[2]
+        name = os.path.basename(latest_checkpoint)
+        destination_path = os.path.join(model_path, name + ext)
         print("Copying {} to {}".format(filename, destination_path))
         tf.gfile.Copy(filename, destination_path)

@@ -29,8 +29,10 @@ def evaluate(prev_model, cur_model):
 
     wins = 0  # number of wins of the new model (white player) over the previous model
 
+    # TODO: use tqdm here
     for i in range(config.n_eval_games):
-        node = mcts.TreeNode()
+        print("eval game: ", i)
+        node = mcts.Node()
         game = go.GoGame()  # create new game for each evaluation
         value = 0  # By default value = 0 (tie)
 

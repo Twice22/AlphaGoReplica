@@ -58,7 +58,7 @@ def initialize_hyper_params(arg_parser):
         '--n-eval-games',
         help="Number of games to play during evaluation",
         type=int,
-        default=100  # 400 in the paper
+        default=2  # 400 in the paper (TODO: put 100 back?)
     )
 
     args_parser.add_argument(
@@ -119,50 +119,50 @@ def initialize_hyper_params(arg_parser):
         '--learning-rates',
         help="Learning rate value for the optimizer",
         nargs='+',
-        default=[0.01, 0.001, 0.0001], # Same in the paper
+        default=[0.01, 0.001, 0.0001],  # Same in the paper
         type=float
     )
     args_parser.add_argument(
         '--learning_rates-scheduler',
         help="Number of step at which to decay the learning rate",
         nargs='+',
-        default=[400000, 600000] # Same in the paper
+        default=[400000, 600000]  # Same in the paper
     )
     args_parser.add_argument(
         '--momentum-rate',
         help="Momentum rate value for the optimizer",
-        default=0.9, # Same in the paper
+        default=0.9,  # Same in the paper
         type=float
     )
     args_parser.add_argument(
         '--n-res-blocks',
         help="Number of blocks for the residual tower",
-        default=5 # 19 or 39 in the paper
+        default=5  # 19 or 39 in the paper
     )
     args_parser.add_argument(
         '--l2_regularization',
         help="L2 regularization parameter for the weights",
-        default=1e-4 # Same in the paper
+        default=1e-4  # Same in the paper
     )
     args_parser.add_argument(
         '--pol-conv-width',
         help="Number of filters for the policy head",
-        default=2 # 2 in the paper
+        default=2  # 2 in the paper
     )
     args_parser.add_argument(
         '--val-conv-width',
         help="Number of filters for the value head",
-        default=1 # 1 in the paper
+        default=1  # 1 in the paper
     )
     args_parser.add_argument(
         '--conv-width',
         help="Number of filters for the convolutional layers",
-        default=256 # 256 in the paper
+        default=256  # 256 in the paper
     )
     args_parser.add_argument(
         '--fc_width',
         help="Number of units for the dense layer",
-        default=256 # 256 in the paper
+        default=256  # 256 in the paper
     )
     args_parser.add_argument(
         '--summary-steps',
@@ -208,7 +208,7 @@ def initialize_hyper_params(arg_parser):
     args_parser.add_argument(
         '--win-ratio',
         help="Number of wins between the new and the old model to replace the old model by the new",
-        default=0.55,  # Same in the paper
+        default=0,  # TODO: put 0.55 back
         type=float
     )
     args_parser.add_argument(
