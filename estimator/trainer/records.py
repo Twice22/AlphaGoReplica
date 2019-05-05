@@ -183,8 +183,8 @@ def _apply_transformations(input_x, output_dict):
     ))
 
     # need to set the shape of the tensor
-    transformed_x_tensor.set_shape(transformed_x_tensor.get_shape())
-    transformed_pi_tensor.set_shape(transformed_pi_tensor.get_shape())
+    transformed_x_tensor.set_shape(input_x.get_shape())
+    transformed_pi_tensor.set_shape(pi_tensor.get_shape())
 
     output_dict["pi"] = transformed_pi_tensor
 
@@ -202,9 +202,8 @@ def generate_input(batch_size, records, shuffle_records=True, buffer_size=1000,
         n_repeats
     )
 
-    # TODO: re-enable this after debugging
-    # if enable_transformations:
-    #     dataset = dataset.map(_apply_transformations)
+    if enable_transformations:
+        dataset = dataset.map(_apply_transformations)
 
     iterator = dataset.make_one_shot_iterator()
     return iterator.get_next()

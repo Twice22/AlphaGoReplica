@@ -15,6 +15,7 @@ import utils
 import game.go as go
 
 from glob import glob
+from tqdm import tqdm
 from self_play import run_game
 from evaluate import evaluate
 
@@ -29,7 +30,7 @@ class DisplayStepsPerSecond(tf.train.StepCounterHook):
     # See https://github.com/tensorflow/tensorflow/blob/r1.12/tensorflow/python/training/basic_session_run_hooks.py#L674
     def _log_and_record(self, elapsed_steps, elapsed_time, global_step):
         s_per_sec = elapsed_steps / elapsed_time
-        logging.log("{}: {:.3f} steps per second".format(global_step, s_per_sec))
+        logging.info("{}: {:.3f} steps per second".format(global_step, s_per_sec))
         super()._log_and_record(elapsed_steps, elapsed_time, global_step)
 
 
@@ -39,7 +40,9 @@ def compute_update_ratio(weight_tensors, before_weights, after_weights):
     deltas = [after - before for after, before in zip(after_weights, before_weights)]
     delta_norms = [np.linalg.norm(d.ravel()) for d in deltas]
     weight_norms = [np.linalg.norm(w.ravel()) for w in before_weights]
-    ratios = [d / w for d, w in zip(delta_norms, weight_norms)]
+
+    # w can be 0 (especially because tf.batch_norm has center=true and beta_initializer=zero)
+    ratios = [d / w if w > 0 else 0 for d, w in zip(delta_norms, weight_norms)]
 
     # save all the grads / weights of all weights of the model into summary
     # See https://github.com/tensorflow/tensorflow/blob/r1.12/tensorflow/core/framework/summary.proto
@@ -101,6 +104,8 @@ class UpdateRatioSessionHook(tf.train.SessionRunHook):
             self.file_writer.add_summary(
                 weight_update_summaries, global_step
             )
+
+            # to avoid executing `after_run()` at each step
             self.before_weights = None
 
 
@@ -119,8 +124,8 @@ def train(*tf_records, work_dir):
             n_repeats=1
         )
 
-    hooks = [DisplayStepsPerSecond(config.job_dir),
-             UpdateRatioSessionHook(output_dir=config.job_dir)]
+    hooks = [UpdateRatioSessionHook(output_dir=config.job_dir),
+             DisplayStepsPerSecond(output_dir=config.job_dir)]
 
     estimator = model.create_estimator(work_dir=work_dir)
     batch_size = config.train_batch_size
@@ -134,7 +139,7 @@ def train(*tf_records, work_dir):
     # hooks: list of subclass of tf.train.SessionRunHook
     try:
         estimator.train(input_fn=_get_input,
-                        # hooks=hooks,  # TODO: DEBUG hook (problem with hook)
+                        hooks=hooks,
                         steps=steps)
     except ValueError as e:
         raise e
@@ -150,18 +155,15 @@ def start(temp_dir):
         network = model.NeuralNetwork()
         network.save_weights()
 
-    # TODO: use tqdm
-    for i in range(config.n_epochs):
-        print("epoch %i" % (i+1))
+    for i in tqdm(range(config.n_epochs), ncols=100, desc='\tEpoch'):
 
         # At each epoch we play `config.n_games` number of games
-        for j in range(config.n_games):
-            print("\tStart self-play training %i" % (j+1))
+        for j in tqdm(range(config.n_games), ncols=100, desc='Self-play training'):
 
             # run self-play games using the weight in `config.job_dir`
             # add save the selfplays as {timestamp_game}.tfrecord for each game
             run_game(
-                load_file=utils.latest_checkpoint(config.job_dir),  # TODO: DEBUG here
+                load_file=utils.latest_checkpoint(config.job_dir),
                 selfplay_dir=config.selfplay_dir,
                 holdout_dir=config.holdout_dir,
                 sgf_dir=config.sgf_dir,

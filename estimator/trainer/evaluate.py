@@ -4,6 +4,8 @@ import mcts
 import game.go as go
 import pachi_py
 
+from tqdm import tqdm
+
 
 def evaluate(prev_model, cur_model):
     """Plays matches between 2 neural networks. 1 Neural network
@@ -30,8 +32,7 @@ def evaluate(prev_model, cur_model):
     wins = 0  # number of wins of the new model (white player) over the previous model
 
     # TODO: use tqdm here
-    for i in range(config.n_eval_games):
-        print("eval game: ", i)
+    for i in tqdm(range(config.n_eval_games), ncols=100, desc='\tGame evaluation'):
         node = mcts.Node()
         game = go.GoGame()  # create new game for each evaluation
         value = 0  # By default value = 0 (tie)
