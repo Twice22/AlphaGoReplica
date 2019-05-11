@@ -105,7 +105,6 @@ class MCTS:
         # return idx of self.root.children
         idx = np.random.choice(len(probs), p=probs)
 
-        # TODO: speed up this
         # ensure to return a vector of size (n_rows * n_cols + 1)
         p = np.zeros(FLAGS.n_rows * FLAGS.n_cols + 1)
         p[np.array([node.action for node in self.root.children])] = probs
@@ -148,8 +147,6 @@ class MCTS:
 
                 # use that action in the game
                 state, done = game.play_action(node.action)
-
-            # TODO: add rotation somewhere
 
             # get probabilities P_s and values from the network for this state
             P_s, v = self.net.run(game)

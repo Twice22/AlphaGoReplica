@@ -313,7 +313,7 @@ def model_fn(features, labels, mode, params):
 
         return tf.estimator.EstimatorSpec(
             mode,
-            predictions=predictions)  # TODO: define export_outputs?
+            predictions=predictions)  # TODO: define export_outputs if serving
 
     # stochastic gradient decent with momentum=0.9
     # and learning rate annealing. See `Optimization`
@@ -334,7 +334,7 @@ def model_fn(features, labels, mode, params):
         return tf.estimator.EstimatorSpec(
             mode,
             loss=loss,
-            train_op=train_op)  # TODO: define hooks?
+            train_op=train_op)
 
 
 class NeuralNetwork:
