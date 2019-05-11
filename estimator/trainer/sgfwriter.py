@@ -3,7 +3,7 @@
 # and
 # https://www.red-bean.com/sgf/
 
-import config
+from config import *
 
 _SGF_COLUMNS = 'abcdefghijklmnopqrstuvwxyz'
 
@@ -22,9 +22,9 @@ def coords_to_sgf(action):
     Returns:
         (str): sgf coordinates of the action
     """
-    r = action // config.n_rows
+    r = action // FLAGS.n_rows
     return "{}{}".format(_SGF_COLUMNS[r],
-                         _SGF_COLUMNS[action - r * config.n_rows])
+                         _SGF_COLUMNS[action - r * FLAGS.n_rows])
 
 
 def action_to_sgf(idx, action):
@@ -53,8 +53,8 @@ def write_sgf(
     Returns:
         (str): SGF formatted string
     """
-    assert config.n_rows == config.n_cols
-    board_size = config.n_rows
+    assert FLAGS.n_rows == FLAGS.n_cols
+    board_size = FLAGS.n_rows
     game_moves = ''.join([action_to_sgf(i, action) for i, action in enumerate(actions_history)])
     result = result_string
 

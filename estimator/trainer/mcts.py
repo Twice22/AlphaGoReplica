@@ -1,17 +1,17 @@
 import numpy as np
-import config
 import sgfwriter
 
+from config import *
 from copy import deepcopy
 
 
 def _get_komi():
-    if not config.is_go:
+    if not FLAGS.is_go:
         return 0
 
-    if 14 <= config.n_rows <= 19:
+    if 14 <= FLAGS.n_rows <= 19:
         return 7.5
-    elif 9 <= config.n_rows <= 13:
+    elif 9 <= FLAGS.n_rows <= 13:
         return 5.5
     return 0
 
@@ -21,7 +21,7 @@ def dirichlet_noise(P_s):
     # add dirichlet noise to the prior probabilities of the root
     # node to allow for additional exploration
     size = len(P_s)
-    P_sa = (1 - config.epsilon) * P_s + config.epsilon * np.random.dirichlet(np.full(size, config.eta))
+    P_sa = (1 - FLAGS.epsilon) * P_s + FLAGS.epsilon * np.random.dirichlet(np.full(size, FLAGS.eta))
     return P_sa
 
 
@@ -33,7 +33,7 @@ def select_action(nodes):
     PUCT_sa = np.zeros(len(nodes[:, 0]))
     N_s = sum(nodes[:, 2])
     for i, (Q_sa, P_sa, N_sa) in enumerate(nodes):
-        PUCT_sa[i] = Q_sa + config.c_puct * P_sa * (N_s ** 0.5) / (1 + N_sa)
+        PUCT_sa[i] = Q_sa + FLAGS.c_puct * P_sa * (N_s ** 0.5) / (1 + N_sa)
 
     # if 2 or more actions have the same confidence bound return one of them at random
     best_idx = np.where(PUCT_sa == np.max(PUCT_sa))[0]
@@ -107,7 +107,7 @@ class MCTS:
 
         # TODO: speed up this
         # ensure to return a vector of size (n_rows * n_cols + 1)
-        p = np.zeros(config.n_rows * config.n_cols + 1)
+        p = np.zeros(FLAGS.n_rows * FLAGS.n_cols + 1)
         p[np.array([node.action for node in self.root.children])] = probs
 
         return p, idx
@@ -135,7 +135,7 @@ class MCTS:
         self.game = game
 
         # do `n_mcts_sim` of Monte Carlo
-        for i in range(config.n_mcts_sim):
+        for i in range(FLAGS.n_mcts_sim):
             node = self.root
             done = False
             game = deepcopy(self.game)  # use override deepcopy version from the goGame class
@@ -202,7 +202,6 @@ class MCTS:
 
         # record the action at each step
         self.actions_history.append(action)
-
 
         # probs = vector of probs of size [n_rows * n_cols + 1, ]
         # action = scalar in range [1, n_rows * n_cols + 1]

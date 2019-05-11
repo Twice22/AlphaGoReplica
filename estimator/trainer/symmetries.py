@@ -1,6 +1,5 @@
 import numpy as np
-import config
-import functools
+from config import *
 
 # see examples: https://en.wikipedia.org/wiki/Dihedral_group
 dihedral_group = {
@@ -100,7 +99,7 @@ def transform_pi(pi, transformation):
         transformed_pi (np.array): name of the transformation to apply to the policy `pi`
     """
     transformed_pi = np.copy(pi)
-    transformed_pi[:-1] = dihedral_group[transformation](pi[:-1].reshape(config.n_rows, config.n_cols)).flatten()
+    transformed_pi[:-1] = dihedral_group[transformation](pi[:-1].reshape(FLAGS.n_rows, FLAGS.n_cols)).flatten()
     return transformed_pi
 
 

@@ -3,18 +3,7 @@ import os
 
 import symmetries
 import tensorflow as tf
-import config
-
-import functools
-
-
-@functools.lru_cache(maxsize=1)
-def get_vars():
-    """
-        Returns all the variables from the files `config.py` as a dictionary
-    """
-    d = {k: v for k, v in config.__dict__.items() if not (k.startswith('__') or k.startswith('_'))}
-    return d
+from config import *
 
 
 def get_inputs():
@@ -23,11 +12,11 @@ def get_inputs():
     """
     features = tf.placeholder(
         dtype=tf.float32,
-        shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
+        shape=[None, FLAGS.n_rows, FLAGS.n_cols, FLAGS.history * 2 + 1],
         name='x')
 
     # +1 for the terminal state
-    labels = {'pi': tf.placeholder(tf.float32, [None, config.n_rows * config.n_cols + 1]),
+    labels = {'pi': tf.placeholder(tf.float32, [None, FLAGS.n_rows * FLAGS.n_cols + 1]),
               'v': tf.placeholder(tf.float32, [None])}
 
     return features, labels
@@ -44,14 +33,14 @@ def create_estimator(work_dir=None):
         Estimator
     """
     run_config = tf.estimator.RunConfig(
-        save_summary_steps=config.summary_steps,
-        keep_checkpoint_max=config.keep_checkpoint_max
+        save_summary_steps=FLAGS.summary_steps,
+        keep_checkpoint_max=FLAGS.keep_checkpoint_max
     )
 
     estimator = tf.estimator.Estimator(model_fn=model_fn,
-                                       params=get_vars(),
+                                       params=FLAGS.flag_values_dict(),
                                        config=run_config,
-                                       model_dir=config.job_dir if work_dir is None else work_dir)
+                                       model_dir=FLAGS.job_dir if work_dir is None else work_dir)
 
     return estimator
 
@@ -65,7 +54,7 @@ def compute_loss(pi, z, p, v):
                                                                    logits=p))
 
     # return a scalar
-    mean_square = config.mean_square_weight * tf.losses.mean_squared_error(labels=z,
+    mean_square = FLAGS.mean_square_weight * tf.losses.mean_squared_error(labels=z,
                                                                            predictions=v)
 
     regularization = tf.losses.get_regularization_loss()
@@ -80,21 +69,20 @@ def model_fn(features, labels, mode, params):
 
     Args:
         features (dict): dictionary that maps the key `x` to the
-            tensor representing the game: [config.n_rows, config.n_cols, config.history * 2 + 1]
+            tensor representing the game: [FLAGS.n_rows, FLAGS.n_cols, FLAGS.history * 2 + 1]
         labels (dict): dictionary that maps the keys `pi`and `x` to their values
-            `pi`: [batch_size, config.n_rows * config.n_cols + 1]
+            `pi`: [batch_size, FLAGS.n_rows * FLAGS.n_cols + 1]
             `z`: [batch_size, 1]
         mode (tf.estimator.Modekeys): Tensorflow mode to use (TRAIN, EVALUATE, PREDICT)
             needed in part because batch Normalization is different during training and
             testing phase
         params (dict): extra parameters of the Neural Net coming from the `config.py` file
-            created by the `task.py` file
     Returns:
         tf.estimator.EstimatorSpec with given properties:
         mode: same as the input mode
         predictions: dict of tensors
             {
-                'p': [batch_size, config.n_rows * config.n_cols + 1],
+                'p': [batch_size, FLAGS.n_rows * FLAGS.n_cols + 1],
                 'v': [batch_size]
             }
         loss: the loss
@@ -121,7 +109,7 @@ def model_fn(features, labels, mode, params):
     lr_boundaries = params['learning_rates_scheduler']
     lr_values = params['learning_rates']
     momentum = params['momentum_rate']
-    summary_step = params['summary_step']  # Number of steps before we log summary scalars
+    summary_steps = params['summary_steps']  # Number of steps before we log summary scalars
 
     training = (mode == tf.estimator.ModeKeys.TRAIN)
     evaluate = (mode == tf.estimator.ModeKeys.EVAL)
@@ -308,7 +296,7 @@ def model_fn(features, labels, mode, params):
     
     # Toggle should_record_summaries
     tf.contrib.summary.record_summaries_every_n_global_steps(
-        summary_step,
+        summary_steps,
         global_step=global_step
     )
     for name, op in metrics.items():
@@ -371,13 +359,13 @@ class NeuralNetwork:
 
     def save_weights(self, work_dir=None, filename="model.ckpt-0"):
         with self.sess.graph.as_default():
-            tf.train.Saver().save(self.sess, os.path.join(config.job_dir if work_dir is None else work_dir,
+            tf.train.Saver().save(self.sess, os.path.join(FLAGS.job_dir if work_dir is None else work_dir,
                                                       filename))
 
     def init_graph(self):
         with self.sess.graph.as_default():
             features, labels = get_inputs()
-            estimator_spec = model_fn(features, labels, tf.estimator.ModeKeys.PREDICT, params=get_vars())
+            estimator_spec = model_fn(features, labels, tf.estimator.ModeKeys.PREDICT, params=FLAGS.flag_values_dict())
 
             self.features = features
             self.predictions = estimator_spec.predictions
@@ -395,7 +383,7 @@ class NeuralNetwork:
         # need a batch of size 1: [1, n_rows, n_cols, 17]
         features = np.array([game.state])
 
-        if config.use_random_symmetry:
+        if FLAGS.use_random_symmetry:
             transformations, features = symmetries.batch_symmetries(features)
 
         outputs = self.sess.run(self.predictions, feed_dict={self.features: features})
@@ -403,7 +391,7 @@ class NeuralNetwork:
 
         # need to retrieve the probabilities 
         # associate to the real state of the game
-        if config.use_random_symmetry:
+        if FLAGS.use_random_symmetry:
             probs = symmetries.unsymmetrize_pi(probs, transformations)
 
         return probs, values
@@ -417,8 +405,8 @@ def export_model(model_path, work_dir=None):
         work_dir: The path that contains the weights of the model
     """
     estimator = tf.estimator.Estimator(model_fn,
-                                       model_dir=config.job_dir if work_dir is None else work_dir,
-                                       params=get_vars())
+                                       model_dir=FLAGS.job_dir if work_dir is None else work_dir,
+                                       params=FLAGS.flag_values_dict())
 
     latest_checkpoint = estimator.latest_checkpoint()
     all_checkpoint_files = tf.gfile.Glob(latest_checkpoint + '*')

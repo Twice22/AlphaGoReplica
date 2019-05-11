@@ -3,7 +3,7 @@ import numpy as np
 from glob import glob
 import os
 import records
-import config
+from config import *
 import model
 
 train_records = glob(os.path.join("data/selfplay_data", "*"))
@@ -11,10 +11,10 @@ train_records = glob(os.path.join("data/selfplay_data", "*"))
 
 # def _get_input():
 #     return records.generate_input(
-#         batch_size=config.train_batch_size,
+#         batch_size=FLAGS.train_batch_size,
 #         records=train_records,
 #         shuffle_records=False,
-#         buffer_size=config.shuffle_buffer_size,
+#         buffer_size=FLAGS.shuffle_buffer_size,
 #         enable_transformations=False,
 #         n_repeats=1
 #     )
@@ -42,4 +42,4 @@ train_records = glob(os.path.join("data/selfplay_data", "*"))
 #         except tf.errors.OutOfRangeError:
 #             break
 
-model.export_model(config.job_dir, work_dir="temp")
+model.export_model(FLAGS.job_dir, work_dir="temp")

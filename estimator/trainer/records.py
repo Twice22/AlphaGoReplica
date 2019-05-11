@@ -3,7 +3,8 @@ import tensorflow as tf
 import multiprocessing
 import symmetries
 import random
-import config
+
+from config import *
 
 
 # see tutorials
@@ -125,18 +126,18 @@ def read_records(batch_size, records, shuffle_records=True, buffer_size=1000, n_
         d = tf.parse_example(batch_of_examples, features)
 
         # convert from a scalar string tensor to an uint8
-        # tensor of shape [batch_size, config.n_rows, config.n_cols, 17]
+        # tensor of shape [batch_size, FLAGS.n_rows, FLAGS.n_cols, 17]
         x = tf.decode_raw(d['x'], tf.uint8)
         x = tf.reshape(x, [batch_size,
-                           config.n_rows,
-                           config.n_cols,
-                           config.history * 2 + 1])
+                           FLAGS.n_rows,
+                           FLAGS.n_cols,
+                           FLAGS.history * 2 + 1])
         x = tf.cast(x, tf.float32)  # need float32 to perform calculations in the Neural network
 
         # convert pi from a scalar string tensor to a float32
         # and reshape the tensor
         pi = tf.decode_raw(d['pi'], tf.float32)
-        pi = tf.reshape(pi, [batch_size, config.n_rows * config.n_cols + 1])
+        pi = tf.reshape(pi, [batch_size, FLAGS.n_rows * FLAGS.n_cols + 1])
 
         # d['v'] is already a float32 we just need to reshape it
         # to have [batch_size] dimension
@@ -220,10 +221,10 @@ def make_selfplay_dataset(data_extracts):
     return tf_examples
 
 
-# TODO: to define if we use Google Cloud
+# TODO: if we want to use Google Cloud
 # see step 3: https://cloud.google.com/blog/big-data/2018/02/easy-distributed-training-with-tensorflow-using-tfestimatortrain-and-evaluate-on-cloud-ml-engine
 def serving_input_receiver_fn():
     feature_tensor = {"x": tf.placeholder(dtype=tf.float32,
-                                          shape=[None, config.n_rows, config.n_cols, config.history * 2 + 1],
+                                          shape=[None, FLAGS.n_rows, FLAGS.n_cols, FLAGS.history * 2 + 1],
                                           name='x')}
     return tf.estimator.export.ServingInputReceiver(feature_tensor, feature_tensor)

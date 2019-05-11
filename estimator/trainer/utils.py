@@ -5,14 +5,6 @@ from glob import glob
 _CHECKPOINT_RE = re.compile(r"([\w\d]*)\.ckpt-([0-9]*)")
 
 
-def create_configuration(mapping, filename="config.py"):
-    with open(filename, 'w') as f:
-        for key, value in mapping.items():
-            if isinstance(value, str):
-                value = "\"" + value + "\""
-            f.write("%s = %s\n" % (key, value))
-
-
 def checkpoints_already_exist(model_path):
     return len(glob(os.path.join(model_path, "*"))) > 0
 

@@ -1,9 +1,9 @@
-import config
 import model
 import mcts
 import game.go as go
 import pachi_py
 
+from config import *
 from tqdm import tqdm
 
 
@@ -31,8 +31,7 @@ def evaluate(prev_model, cur_model):
 
     wins = 0  # number of wins of the new model (white player) over the previous model
 
-    # TODO: use tqdm here
-    for i in tqdm(range(config.n_eval_games), ncols=100, desc='\tGame evaluation'):
+    for i in tqdm(range(FLAGS.n_eval_games), ncols=100, desc='\tGame evaluation'):
         node = mcts.Node()
         game = go.GoGame()  # create new game for each evaluation
         value = 0  # By default value = 0 (tie)
@@ -41,9 +40,9 @@ def evaluate(prev_model, cur_model):
             # If player_color == 1 (BLACK) use mcts with weights from the black model
             # else (player_color == 2), use mcts with weights from the white model
             if game.player_color == 1:
-                probs, action, best_child = black.search(game, node, config.temperature[1])
+                probs, action, best_child = black.search(game, node, FLAGS.temperature[1])
             else:
-                probs, action, best_child = white.search(game, node, config.temperature[1])
+                probs, action, best_child = white.search(game, node, FLAGS.temperature[1])
 
             _, game_over = game.play_action(action)
 
@@ -61,7 +60,7 @@ def evaluate(prev_model, cur_model):
 
         wins += value
 
-    return wins / config.n_eval_games
+    return wins / FLAGS.n_eval_games
 
 
 def main(argv):

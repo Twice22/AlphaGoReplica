@@ -9,11 +9,10 @@ import os
 import numpy as np
 import tensorflow as tf
 import model
-import config
 import records
 import utils
-import game.go as go
 
+from config import *
 from glob import glob
 from tqdm import tqdm
 from self_play import run_game
@@ -116,20 +115,20 @@ def train(*tf_records, work_dir):
 
     def _get_input():
         return records.generate_input(
-            batch_size=config.train_batch_size,
+            batch_size=FLAGS.train_batch_size,
             records=tf_records,
             shuffle_records=True,
-            buffer_size=config.shuffle_buffer_size,
+            buffer_size=FLAGS.shuffle_buffer_size,
             enable_transformations=True,
             n_repeats=1
         )
 
-    hooks = [UpdateRatioSessionHook(output_dir=config.job_dir),
-             DisplayStepsPerSecond(output_dir=config.job_dir)]
+    hooks = [UpdateRatioSessionHook(output_dir=FLAGS.job_dir),
+             DisplayStepsPerSecond(output_dir=FLAGS.job_dir)]
 
     estimator = model.create_estimator(work_dir=work_dir)
-    batch_size = config.train_batch_size
-    steps = config.steps_to_train
+    batch_size = FLAGS.train_batch_size
+    steps = FLAGS.steps_to_train
 
     logging.info("Training, steps = %s, batch = %s -> %s examples",
                  steps or '?', batch_size,
@@ -147,47 +146,46 @@ def train(*tf_records, work_dir):
 
 def start(temp_dir):
     # make sure the directories exist
-    tf.gfile.MakeDirs(config.job_dir)
+    tf.gfile.MakeDirs(FLAGS.job_dir)
     tf.gfile.MakeDirs(temp_dir)
 
     # If no checkpoints. Initialize a model with random weights and save them
-    if not utils.checkpoints_already_exist(config.job_dir):
+    if not utils.checkpoints_already_exist(FLAGS.job_dir):
         network = model.NeuralNetwork()
         network.save_weights()
 
-    for i in tqdm(range(config.n_epochs), ncols=100, desc='\tEpoch'):
+    for i in tqdm(range(FLAGS.n_epochs), ncols=100, desc='\tEpoch'):
 
-        # At each epoch we play `config.n_games` number of games
-        for j in tqdm(range(config.n_games), ncols=100, desc='Self-play training'):
+        # At each epoch we play `FLAGS.n_games` number of games
+        for j in tqdm(range(FLAGS.n_games), ncols=100, desc='Self-play training'):
 
-            # run self-play games using the weight in `config.job_dir`
+            # run self-play games using the weight in `FLAGS.job_dir`
             # add save the selfplays as {timestamp_game}.tfrecord for each game
             run_game(
-                load_file=utils.latest_checkpoint(config.job_dir),
-                selfplay_dir=config.selfplay_dir,
-                holdout_dir=config.holdout_dir,
-                sgf_dir=config.sgf_dir,
-                holdout_pct=config.holdout_pct,
+                load_file=utils.latest_checkpoint(FLAGS.job_dir),
+                selfplay_dir=FLAGS.selfplay_dir,
+                holdout_dir=FLAGS.holdout_dir,
+                sgf_dir=FLAGS.sgf_dir,
+                holdout_pct=FLAGS.holdout_pct,
             )
 
-        # Once all the tfrecords are generated and saved in `config.selfplay_dir`
-
+        # Once all the tfrecords are generated and saved in `FLAGS.selfplay_dir`
         # train the network and save the weights in a temporary directory
-        full_selfplay_dir = os.path.join(config.main_data_dir, config.selfplay_dir)
+        full_selfplay_dir = os.path.join(FLAGS.main_data_dir, FLAGS.selfplay_dir)
         selfplay_records = glob(os.path.join(full_selfplay_dir, "*.tfrecord"))
         train(selfplay_records, work_dir=temp_dir)
 
         # play a self play between former weights (eval net) and new model (current_model)
-        previous_weights = utils.latest_checkpoint(config.job_dir)
+        previous_weights = utils.latest_checkpoint(FLAGS.job_dir)
         new_weights = utils.latest_checkpoint(temp_dir)
 
         percentage_wins_cur_model = evaluate(previous_weights, new_weights)
 
         # Replace the old model by the new one if it is better (temp_dir -> job_dir)
-        if percentage_wins_cur_model > config.win_ratio:
-            tf.gfile.DeleteRecursively(config.job_dir)
-            tf.gfile.MakeDirs(config.job_dir)
-            model.export_model(config.job_dir, work_dir=temp_dir)
+        if percentage_wins_cur_model > FLAGS.win_ratio:
+            tf.gfile.DeleteRecursively(FLAGS.job_dir)
+            tf.gfile.MakeDirs(FLAGS.job_dir)
+            model.export_model(FLAGS.job_dir, work_dir=temp_dir)
 
         # delete weights in temp directory
         tf.gfile.DeleteRecursively(temp_dir)
@@ -205,9 +203,12 @@ def main(argv):
     # *tf_records is a list
     train(*tf_records)
 
-    if config.export_path:
-        model.export_model(config.export_path)
+    if FLAGS.export_path:
+        model.export_model(FLAGS.export_path)
 
 
 if __name__ == '__main__':
-    main()
+    import setproctitle
+    setproctitle.setproctitle('AlphaGo')
+
+    start("temp")

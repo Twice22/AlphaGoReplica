@@ -4,11 +4,12 @@ import time
 import tensorflow as tf
 import numpy as np
 
-import config
 import model
 import records
 import mcts
 import game.go as go
+
+from config import *
 
 
 def play(model):
@@ -34,10 +35,10 @@ def play(model):
 
     while True:
         # by default: first 30 moves of the game, the temperature is set to 1
-        if count < config.temperature_scheduler:
-            probs, action, best_child = player.search(game, node, config.temperature[0])
+        if count < FLAGS.temperature_scheduler:
+            probs, action, best_child = player.search(game, node, FLAGS.temperature[0])
         else:
-            probs, action, best_child = player.search(game, node, config.temperature[1])
+            probs, action, best_child = player.search(game, node, FLAGS.temperature[1])
 
         # self.root.position.n represents the # of moves played so far
         # self.search_pi is update each time play_move is used on player: it adds
@@ -87,11 +88,11 @@ def run_game(load_file, selfplay_dir=None, holdout_dir=None,
         holdout_pct (float): percentage of game to hold out
     """
     if sgf_dir is not None:
-        full_sgf_dir = os.path.join(config.main_data_dir, sgf_dir)
+        full_sgf_dir = os.path.join(FLAGS.main_data_dir, sgf_dir)
         tf.gfile.MakeDirs(full_sgf_dir)
     if selfplay_dir is not None:
-        full_selfplay_dir = os.path.join(config.main_data_dir, selfplay_dir)
-        full_holdout_dir = os.path.join(config.main_data_dir, holdout_dir)
+        full_selfplay_dir = os.path.join(FLAGS.main_data_dir, selfplay_dir)
+        full_holdout_dir = os.path.join(FLAGS.main_data_dir, holdout_dir)
         tf.gfile.MakeDirs(full_selfplay_dir)
         tf.gfile.MakeDirs(full_holdout_dir)
 
@@ -128,11 +129,11 @@ def run_game(load_file, selfplay_dir=None, holdout_dir=None,
 
 def main(unused_args):
     run_game(
-        load_file=config.weight_folder,
-        selfplay_dir=config.selfplay_dir,
-        holdout_dir=config.holdout_dir,
-        sgf_dir=config.sgf_dir,
-        holdout_pct=config.holdout_pct,
+        load_file=FLAGS.weight_folder,
+        selfplay_dir=FLAGS.selfplay_dir,
+        holdout_dir=FLAGS.holdout_dir,
+        sgf_dir=FLAGS.sgf_dir,
+        holdout_pct=FLAGS.holdout_pct,
     )
 
 
