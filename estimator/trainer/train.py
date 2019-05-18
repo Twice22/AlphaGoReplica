@@ -179,7 +179,7 @@ def start(temp_dir):
         previous_weights = utils.latest_checkpoint(FLAGS.job_dir)
         new_weights = utils.latest_checkpoint(temp_dir)
 
-        percentage_wins_cur_model = evaluate(previous_weights, new_weights)
+        percentage_wins_cur_model = evaluate(previous_weights, new_weights, epoch=i)
 
         # Replace the old model by the new one if it is better (temp_dir -> job_dir)
         if percentage_wins_cur_model > FLAGS.win_ratio:

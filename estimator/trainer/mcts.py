@@ -3,17 +3,7 @@ import sgfwriter
 
 from config import *
 from copy import deepcopy
-
-
-def _get_komi():
-    if not FLAGS.is_go:
-        return 0
-
-    if 14 <= FLAGS.n_rows <= 19:
-        return 7.5
-    elif 9 <= FLAGS.n_rows <= 13:
-        return 5.5
-    return 0
+from utils import get_komi
 
 
 def dirichlet_noise(P_s):
@@ -127,7 +117,7 @@ class MCTS:
 
         return sgfwriter.write_sgf(self.actions_history,
                                    self.result_string,
-                                   komi=_get_komi())
+                                   komi=get_komi())
 
     def search(self, game, node, temp):
         self.root = node

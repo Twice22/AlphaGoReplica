@@ -75,6 +75,7 @@ def play(model):
 
 
 # SGF format: https://fr.wikipedia.org/wiki/Smart_Game_Format
+# To visualize SGF games: http://goginkgo.github.io/
 def run_game(load_file, selfplay_dir=None, holdout_dir=None,
              sgf_dir=None, holdout_pct=0.05):
     """
@@ -107,7 +108,7 @@ def run_game(load_file, selfplay_dir=None, holdout_dir=None,
 
     # save the data in SGF format
     if sgf_dir is not None:
-        with tf.gfile.GFile(sgf_dir, '%s.sgf' % output_name, "w") as f:
+        with tf.gfile.GFile(os.path.join(full_sgf_dir, '%s.sgf' % output_name), "w") as f:
             f.write(player.to_sgf())
 
     tf_examples = records.make_selfplay_dataset(game_data)

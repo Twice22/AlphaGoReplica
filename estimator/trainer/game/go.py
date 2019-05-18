@@ -1,8 +1,4 @@
 import numpy as np
-import gym
-from gym import spaces
-from gym.utils import seeding
-from six import StringIO
 import sys
 import six
 import pachi_py
@@ -10,7 +6,6 @@ import pachi_py
 from copy import deepcopy
 
 # TODO: change for a variable using parser for HISTORY
-# TODO: define komi variable: either 6.5 or 7.5
 HISTORY = 8
 
 # The coordinate representation of Pachi (and pachi_py) is defined on a board
@@ -145,7 +140,7 @@ class GoGame():
         """
         self.komi = self._komi()
         self.board = pachi_py.CreateBoard(self.board_size)  # object with method
-        self.done = self.board.is_terminal
+        self.done = False
 
         self.history = np.zeros((self.board_size, self.board_size, HISTORY * 2), dtype=np.int8)
         self.state = np.zeros((self.board_size, self.board_size, HISTORY * 2 + 1), dtype=np.int8)
@@ -196,7 +191,8 @@ class GoGame():
         player_wins = (white_wins and self.player_color == pachi_py.WHITE) \
                       or (black_wins and self.player_color == pachi_py.BLACK)
 
-        reward = 1 if player_wins else -1 if (white_wins or black_wins) else 0
+        # TODO: replace by white_wins ^ black_wins
+        reward = 1 if player_wins else -1 if (white_wins ^ black_wins) else 0
 
         return reward
 

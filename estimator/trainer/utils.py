@@ -1,5 +1,7 @@
 import os
 import re
+
+from config import *
 from glob import glob
 
 _CHECKPOINT_RE = re.compile(r"([\w\d]*)\.ckpt-([0-9]*)")
@@ -32,3 +34,14 @@ def latest_checkpoint(ckpt_dir):
         return os.path.join(ckpt_dir, last_checkpoint)
     else:
         raise RuntimeError("No checkpoint could have been found in %s" % ckpt_dir)
+
+
+def get_komi():
+    if not FLAGS.is_go:
+        return 0
+
+    if 14 <= FLAGS.n_rows <= 19:
+        return 7.5
+    elif 9 <= FLAGS.n_rows <= 13:
+        return 5.5
+    return 0

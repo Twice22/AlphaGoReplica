@@ -130,7 +130,7 @@ flags.DEFINE_float(
 	'holdout_pct', 0.05,
 	"ratio of games data to use for the validation set")
 flags.DEFINE_string(
-	"sgf_dir", None,
+	"sgf_dir", "sgf_evaluation_games",
 	"Where to write SGF (Standard Game Format) files")
 
 
