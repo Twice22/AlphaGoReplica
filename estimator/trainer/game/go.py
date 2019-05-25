@@ -188,6 +188,8 @@ class GoGame():
         white_wins = score > 0
         black_wins = score < 0
 
+        # TODO: isn't it maybe white_wins and self.player_color = BLACK (because we have changed the color
+        #  just after white had played?)
         player_wins = (white_wins and self.player_color == pachi_py.WHITE) \
                       or (black_wins and self.player_color == pachi_py.BLACK)
 
